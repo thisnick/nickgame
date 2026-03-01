@@ -4,10 +4,19 @@ NES game built with **NESFab** (not cc65/ca65). Chapter-based biographical RPG �
 
 ## Toolchain
 
-- **NESFab v1.8** — purpose-built NES language, compiles `.fab` to 6502. Installed at `/usr/local/bin/nesfab`
+- **NESFab v1.8** — purpose-built NES language, compiles `.fab` to 6502. Binary at `/usr/local/bin/nesfab`
 - **Build:** `make` produces `nickgame.nes` (40KB NROM). `make web && make serve` for browser testing at localhost:8080
 - **Config:** `game.cfg` — NROM mapper, vertical mirroring, 32K PRG, 8K CHR
 - **No Python, no cc65, no ca65/ld65** — those were removed
+- **If `nesfab` is missing:** rebuild from source (requires boost):
+  ```
+  brew install boost
+  git clone https://github.com/pubby/nesfab.git /tmp/nesfab
+  cd /tmp/nesfab && make CXX=clang++ ARCH=ARM64 \
+    CXXFLAGS="-I/opt/homebrew/include" \
+    LDLIBS="-L/opt/homebrew/lib -lboost_program_options" release
+  cp /tmp/nesfab/nesfab /usr/local/bin/nesfab
+  ```
 
 ## Project Layout
 
