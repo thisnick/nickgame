@@ -1,0 +1,12 @@
+/*
+ * Copyright (c) 2023, Patrick Bene
+ * This file is distributed under the Boost Software License, Version 1.0.
+ * See LICENSE_1_0.txt or https://www.boost.org/LICENSE_1_0.txt 
+ */
+
+chrrom
+    file(fmt, "plane.png") 
+    file(fmt, "title.png") 
+
+audio(puf1_music, "music.txt")
+audio(puf1_sfx)

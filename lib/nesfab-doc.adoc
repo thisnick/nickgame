@@ -1,0 +1,6506 @@
+= NESFab
+Copyright (c) 2023, Pubby
+Version 1.8
+:sectnums:
+:toc2:
+:toclevels: 3
+:toc-title: Table of Contents
+                                                                    
+:description: Documentation for NESFab
+:keywords: 
+:imagesdir: ./img
+
+== About this Document
+
+This documentation is for http://pubby.games/nesfab.html[NESFab].
+It is a work in progress, so comments and contributions are welcome.
+
+- Question can be asked on the https://discord.gg/RUrYmC5ZeE[Discord] or via https://pubby.games/email.png[email].
+- Changes can be submitted it via the https://github.com/pubby/nesfab[Github].
+
+== What is NESFab?
+
+NESFab is a statically-typed, procedural programming language for creating NES games. 
+Designed with 8-bit limitations in mind, the language is more ergonomic to use than C, while also producing faster assembly code. 
+It's easy to get started with, and has a useful set of libraries for making your first -- or hundredth -- NES game.
+
+=== Strengths of NESFab
+
+- Performance is generally superior to C and all other compiled languages.
+- <<mappers, Mapper>> banks are handled automatically and scale up without fuss.
+- Multi-byte and fixed-point arithmetic is well supported and simpler than other languages.
+- The compiler is easily configured, without needing complex build systems.
+- Some asset loading is built-in. There are less steps to get your ideas onto the screen.
+
+=== Weaknesses of NESFab
+
+- NESFab code is only compatible with the NES. It cannot compile to other systems.
+- Only a select number of cartridge <<mappers, mappers>> are supported. 
+- Although NESFab performance is good, writing assembly by hand can obviously surpass it. 
+- NESFab is not as tried-and-true as other languages. They are likely bugs and missing features.
+
+== Quirks and Surprises
+
+If you're coming from another language, you might be surprised by a few of NESFab's quirks. 
+The most flagrant ones are listed below.
+
+=== Types and Values
+
+- Like C, everything is passed by <<value_semantics, value>>. Nothing is passed by reference.
+
+- While arrays are supported, multi-dimensional arrays are not. 
+- Most values cannot be addressed via pointers. 
+  Instead, only global variables of a <<type_paa, specific type>> can be addressed.
+- Global variables and data are partitioned into used-defined <<groups, groups>>; a concept unique to NESFab.
+
+=== Operators
+
+- The operators `&`, `|`, and `^` have a <<binop, higher precedence>> than in C.
+- Combined-assignment operators, like `+=`, return a value of type `Bool`, representing the carry.
+- Division is unsupported at the language level.
+- Array operators (`[]` and `{}`) are split into 8-bit and 16-bit versions, with the 8-bit versions having better performance.
+- Types are not implicitly promoted. Different operators have different rules for how differing types are handled.  
+
+== Illegal Instructions [[illegal_ops]]
+
+By default, NESFab makes use of the system's https://en.wikipedia.org/wiki/Illegal_opcode[illegal opcodes], 
+which provide small performance gains when used.
+Although widely supported, some emulators and clone devices may not handle these instructions and so it can be desirable to compile without them.
+
+To compile without illegal instructions, pass `ISA=LEGAL` to `Make` when building the compiler.
+
+See the <<kw_illegal, `__illegal` keyword>> for how to programatically check if illegal opcodes are supported.
+
+== Getting Started
+
+=== Installation
+
+NESFab is available on https://github.com/pubby/nesfab[Github]. 
+It is best to build it from scratch, but if that is not possible, download one of the https://github.com/pubby/nesfab/releases[releases].
+On Unix systems, is recommended to place the `nesfab` executable in a directory your `PATH` variable searches.
+On Linux, this is typically `/usr/bin`, while on Mac, it is typically `/usr/local/bin`. 
+
+You will also want a NES emulator with debugging features, like 
+https://fceux.com/[FCEUX], https://www.mesen.ca/[Mesen], or https://www.qmtpro.com/~nes/nintendulator/[Nintendulator].
+It is often beneficial to test on multiple emulators, so there is no shame in downloading them all.
+
+Syntax highlighting support can be found in the `syntax_highlighting` directory of repository.
+If your text editor is not supported, consider writing one yourself and submitting it to the repository.
+
+=== Compiling your first ROM [[firstrom]]
+
+The `nesfab` tool compiles `.fab` source code files into `.nes` ROMs. 
+It can be used with the command-line, or by clicking and dragging the file you want to compile onto the `nesfab` executable.
+
+To compile your first ROM, create a file called `main.fab` and save it with code below:
+
+----
+// This small program plays a sound effect.
+
+// Variables:
+vars /sound
+    UU pitch = 1000
+
+// Sends 'pitch' variable to the APU, emitting sound:
+fn play_sound()
+    {$4015}(%100)
+    {$4008}($FF)
+    {$400A}(pitch.a)
+    {$400B}(pitch.b & %111)
+
+// Game loop:
+mode main()
+    {PPUCTRL}(%10000000)
+    while true
+        pitch *= 1.01
+        play_sound()
+        nmi
+----
+
+If using the command-line, you can compile it using the command:
+
+`nesfab main.fab`
+
+Otherwise, drag the `main.fab` file onto the `nesfab` executable.
+
+When done, the compiler should have produced an `a.nes` file in the same directory,
+which is the default name of compiled binaries. 
+Try running `a.nes` in your NES emulator.
+You should hear a sweeping tone being played.
+
+=== Your first configuration file
+
+The `nesfab` compiler accepts options both on the command-line, and via configuration files.
+For most projects, a single configuration file is ideal, so this section will focus on that.
+
+Below is an example configuration file: `hello_world.cfg`: 
+----
+output = hello_world.nes
+input = main.fab
+----
+The `output` option determines the name of the `.nes` file, while `input` lists a single source file.
+
+To compile using this configuration file, either run:
+
+`nesfab hello_world.cfg`
+
+Or drag the `hello_world.cfg` file onto the `nesfab` executable.
+
+It should produce the same result as <<firstrom, before>>, but the ROM will be saved as `hello_world.nes` instead of `a.nes`
+because the `output` option was set.
+
+For more details about configuration files, see the <<config, config reference page>>.
+
+=== Included Examples
+
+Project examples can be found in the `examples/` directory of the repository. 
+To build each example, compile their `*.cfg` files.
+
+=== Other Resources
+
+The best site for learning to program the NES is https://www.nesdev.org/[NESDev],
+along with its https://www.nesdev.org/wiki/Nesdev_Wiki[wiki].
+A few of the most valuable pages are listed below:
+
+- https://www.nesdev.org/wiki/CPU_memory_map[Memory Map]
+- https://www.nesdev.org/wiki/PPU_registers[PPU Registers]
+- https://www.nesdev.org/wiki/APU_registers[APU Registers]
+- https://www.nesdev.org/obelisk-6502-guide/reference.html[6502 Instruction Listings]
+
+== Configuration Options [[config]]
+
+=== Comments
+
+Comments in configuration files are specified as lines beginning with `#`.
+Comments are used for documentation; they have no effect on the configuration.
+
+Comments are not available on the command-line.
+
+Example:
+
+----
+# Hello world! This is a comment!
+----
+
+=== `help` (`-h`)
+
+Prints a list of command-line options.
+
+This option is only available via the command-line.
+
+*Command-line usage:*
+----
+nesfab --help
+----
+
+=== `version` (`-v`)
+
+Prints information about the NESFab executable, including its version history.
+
+This option is only available via the command-line.
+
+*Command-line usage:*
+----
+nesfab --version
+----
+
+=== `input` (`-i`)
+
+Specifies a file to be compiled, which can either be a source file with extension `.fab`, 
+a <<kw_macro, macro file>> with extension `.macrofab`, or a configuration file with extension `.cfg`.
+This option can be used multiple times to compile multiple files.
+
+Note: the flags `--input` and `-i` are optional when using the command line,
+as any argument not belonging to another option will be interpreted as an `input`.
+
+*Command-line usage:*
+----
+nesfab --input "file1.fab" --input "file2.fab" --input "another_config.cfg"
+----
+
+or:
+
+----
+nesfab "file1.fab" "file2.fab" "another_config.cfg"
+----
+
+*Configuration file usage:*
+----
+input = file1.fab
+input = util/file2.fab
+input = another_config.cfg
+----
+
+=== `output` (`-o`)
+
+Specifies the name of the executable `.nes` file the compiler will produce.
+This option can only be specified once.
+
+By default, the value is `"a.nes"`.
+
+*Command-line usage:*
+----
+nesfab --output "game.nes"
+----
+
+*Configuration file usage:*
+----
+output = game.nes
+----
+
+=== `code-dir` (`-I`) [[opt_codedir]]
+
+Specifies a directory to be searched when compiling source code files.
+This option can be used multiple times to specify multiple directories.
+
+Commonly, this option is used when several source files exist in the same directory.
+`code-dir` can specify this directory, then `input` can specify the files inside it
+without having to reference the directory name.
+
+*Command-line usage:*
+----
+nesfab --code-dir "some_directory/"
+----
+
+*Configuration file usage:*
+----
+code-dir = some_directory/
+----
+
+=== `resource-dir` (`-R`) [[opt_resdir]]
+
+Specifies a directory to be searched when importing data files.
+This option can be used multiple times to specify multiple directories.
+
+This behaves like <<opt_codedir,`code-dir`>>, but applies to the files imported by the <<kw_file, `file` keyword>>.
+
+*Command-line usage:*
+----
+nesfab --resource-dir "some_directory/"
+----
+
+*Configuration file usage:*
+----
+resource-dir = some_directory/
+----
+
+=== `nesfab-dir` (`-N`) [[opt_nesdir]]
+
+Specifies a directory to be searched when importing source code and data files.
+This option can be used multiple times to specify multiple directories.
+
+This behaves like defining both <<opt_codedir,`code-dir`>> and <<opt_resdir, `resource-dir`>>, but `nesfab-dir` has a lower search priority.
+
+*Command-line usage:*
+----
+nesfab --nesfab-dir "some_directory/"
+----
+
+*Configuration file usage:*
+----
+nesfab-dir = some_directory/
+----
+
+Note that the environment variable `NESFAB` can also be used to set this value.
+
+*Example:*
+----
+export NESFAB=/home/pubby/nesfab/
+----
+
+=== `mapper` (`-M`) [[opt_mapper]]
+
+Specifies the mapper used. The argument is a <<mappers,mapper name>>.
+This option can only be specified once.
+
+By default, the value is `nrom`.
+
+*Command-line usage:*
+----
+nesfab --mapper bnrom
+----
+
+*Configuration file usage:*
+----
+mapper = bnrom
+----
+
+=== `mirroring` (`-m`) [[opt_mirroring]]
+
+Specifies the mirroring used for <<mappers,mappers with fixed mirrorings>>.
+This option can only be specified once.
+
+This option expects one argument. Any of the following arguments are valid:
+
+|===
+|Argument |Description
+
+| V
+| Vertical Mirroring
+
+| H
+| Horizontal Mirroring
+
+| 4
+| 4-Way Mirroring
+
+| 1
+| 1-Way Switchable
+
+|===
+
+If the mapper supports multiple mirrorings, the default value is `V`.
+
+*Command-line usage:*
+----
+nesfab --mirroring H
+----
+
+*Configuration file usage:*
+----
+mirroring = H
+----
+
+=== `prg-size` (`-p`) [[opt_prg]]
+
+Specifies the size of PRG (the amount of memory for code) in increments of 1 KiB.
+This option can only be specified once.
+
+The default value depends on the <<mappers, mapper.>> 
+
+[NOTE]
+Just because the compiler accepts a `prg-size` does not mean that corresponding hardware exists in the real world.
+Only the default size is asserted to be commonly available.
+
+*Command-line usage:*
+----
+nesfab --prg-size 128
+----
+
+*Configuration file usage:*
+----
+prg-size = 128
+----
+
+=== `chr-size` (`-c`) [[opt_chr]]
+
+Specifies the size of CHR (the amount of memory for tilesets) in increments of 1 KiB.
+This option can only be specified once.
+
+The default value depends on the <<mappers, mapper.>> 
+
+[NOTE]
+Just because the compiler accepts a `chr-size` does not mean that corresponding hardware exists in the real world.
+Only the default size is asserted to be commonly available.
+
+*Command-line usage:*
+----
+nesfab --chr-size 32
+----
+
+*Configuration file usage:*
+----
+chr-size = 32
+----
+
+=== `sector-size` [[opt_sector_size]]
+
+Specifies the size of the PRG chip's sectors, which is useful when implementing flash memory saves.
+This option determines the language's <<kw_sector_size, `__sector_size` value>>.
+It has no other purpose.
+
+With most mappers, the default value is 4098.
+
+*Command-line usage:*
+----
+nesfab --sector-size 1024
+----
+
+*Configuration file usage:*
+----
+sector-size = 1024
+----
+
+=== `bus-conflicts` [[opt_bus_conflicts]]
+
+Specifies whether the mapper has bus conflicts.
+This option can only be specified once.
+
+The following arguments are valid:
+
+- To disable: `0`, `false,` or `off`.
+- To enable: `1`, `true,` or `on`.
+- For the default value: `default`.
+
+The default value depends on the <<mappers, mapper.>> 
+
+*Command-line usage:*
+----
+nesfab --bus-conflicts true
+----
+
+*Configuration file usage:*
+----
+bus-conflicts = true
+----
+
+=== `sram` [[opt_sram]]
+
+Specifies whether the mapper should include 8KiB of RAM, mapped to addresses $6000-$7FFF.
+
+The following arguments are valid:
+
+- To disable: `0`, `false,` or `off`.
+- To enable SRAM which saves across resets: `persistent`.
+- To enable SRAM which does not save across resets: `volatile`.
+- To enable and use the mapper's default save behavior: `1`, `true,` or `on`.
+- For the default value: `default`.
+
+The default value depends on the <<mappers, mapper.>> 
+
+*Command-line usage:*
+----
+nesfab --sram volatile
+----
+
+*Configuration file usage:*
+----
+sram = volatile
+----
+
+[NOTE]
+Just because the compiler accepts a `sram` value does not mean that corresponding hardware exists in the real world.
+Only the default `sram` value is asserted to be commonly available.
+
+=== `sram-alloc` [[opt_sram_alloc]]
+
+Specifies how the compiler should utilize extra cartridge RAM.
+
+The following arguments are valid:
+
+- To disable allocation: `0`, `false,` or `off`.
+- To enable allocation only when <<mod_flags, `+sram`>> is used: `request`.
+- To enable allocation in all situations: `1`, `true`, or `on`.
+
+By default, the value is `on`.
+
+*Command-line usage:*
+----
+nesfab --sram-alloc request
+----
+
+*Configuration file usage:*
+----
+sram-alloc = request
+----
+
+[NOTE]
+This option only applies when <<opt_sram>> is enabled.
+
+=== `sram-size` [[opt_sram_size]]
+
+Specifies how much extra cartridge RAM the compiler should utilize.
+
+Arguments from 1 to 8192 are accepted.
+
+By default, the value is 8192.
+
+*Command-line usage:*
+----
+nesfab --sram-size 4096
+----
+
+*Configuration file usage:*
+----
+sram-size = 4096
+----
+
+[NOTE]
+This option only applies when <<opt_sram>> is enabled.
+
+=== `system` (`-S`) [[opt_system]]
+
+Specifies the target NES system, which will be accessible using the <<kw_system, `system` keyword>>.
+This option can only be specified once.
+
+By default, the value is `detect`.
+
+*Command-line usage:*
+----
+nesfab --system ntsc
+----
+
+*Configuration file usage:*
+----
+system = ntsc
+----
+
+|===
+|Argument |Description
+
+| <<kw_system_ntsc, `ntsc`>>
+| https://en.wikipedia.org/wiki/NTSC[USA and Japanese systems]
+
+| <<kw_system_pal, `pal`>>
+| https://en.wikipedia.org/wiki/PAL[European systems]
+
+| <<kw_system_dendy, `dendy`>>
+| https://en.wikipedia.org/wiki/Dendy_(console)[Russian systems]
+
+| <<kw_system_unknown, `unknown`>>
+| Other systems
+
+| `detect`
+| Detect system at runtime
+
+|===
+
+[NOTE]
+`detect` has a small runtime penalty.
+
+=== `controllers` (`-C`) [[opt_controllers]]
+
+Specifies the maximum number of controllers the game will use.
+This option determines the language's <<kw_controllers, `__controllers` value>>.
+It has no other purpose.
+
+Arguments from 1 to 8 are accepted.
+
+By default, the value is 2.
+
+*Command-line usage:*
+----
+nesfab --controllers 2
+----
+
+*Configuration file usage:*
+----
+controllers = 2
+----
+
+=== `unsafe-bank-switch` [[opt_unsafe_bank_switch]]
+
+By default, the compiler generates <<banks, bank>> switching code which is resilient to hardware interrupts.
+For many games, this added safety is unnecessary and slows the code down.
+This option is used to disable safe bank switching behavior.
+
+This option can only be specified once.
+
+[NOTE]
+Unsafe bank switches are best enabled when IRQ is not used and when NMI is always waited for (no lag frames possible).
+
+[NOTE]
+Some mappers, such as BNROM, do not benefit from `unsafe-bank-switch`, as they always switch banks quickly.
+
+*Command-line usage:*
+----
+nesfab --unsafe-bank-switch
+----
+
+*Configuration file usage:*
+----
+unsafe-bank-switch = 1
+----
+
+=== `expansion-audio` [[opt_expansion_audio]]
+
+This option determines the language's <<kw_expansion_audio, `__expansion_audio` value>>,
+which is used to enable expansion audio in music drivers.
+
+*Command-line usage:*
+----
+nesfab --expansion-audio
+----
+
+*Configuration file usage:*
+----
+expansion-audio = 1
+----
+
+=== `multicart` [[opt_multicart]]
+
+This option is used to make the generated ROM compatible with specific multicarts.
+Often, this entails reserving a specific region in the ROM for multicart-specific code.
+
+|===
+|Argument |Multicart |Description
+
+| `action53`
+| https://www.nesdev.org/wiki/Action_53_mapper[Action 53]
+| Reserves $FFD0-$FFF9.
+
+|===
+
+[NOTE]
+The `action53` setting should be used when entering the https://itch.io/jam/nesdev-2022[NESDev Competition].
+
+*Command-line usage:*
+----
+nesfab --multicart action53
+----
+
+*Configuration file usage:*
+----
+multicart = action53
+----
+
+=== `mlb` [[opt_mlb]]
+
+`mlb` specifies a https://www.mesen.ca/[Mesen] .mlb label file to output.
+This file will contain addresses used by the program, for the purpose of debugging.
+
+*Command-line usage:*
+----
+nesfab --mlb "my_labels.mlb"
+----
+
+*Configuration file usage:*
+----
+mlb = my_labels.mlb
+----
+
+=== `ctags` [[opt_ctags]]
+
+`ctags` specifies a https://en.wikipedia.org/wiki/Ctags[Ctags] file to output.
+This file will contain source locations of global definitions, allowing text editors to better navigate.
+
+*Command-line usage:*
+----
+nesfab --ctags ".tags"
+----
+
+*Configuration file usage:*
+----
+ctags = ".tags"
+----
+
+[NOTE]
+To use CTags in VSCode, use the
+https://marketplace.visualstudio.com/items?itemName=jtanx.ctagsx[ctagsx] extension.
+
+=== `threads` (`-j`)
+
+Specifies how many threads the compiler can use, enabling parallel compilation.
+This option expects an integer argument, and can only be specified once.
+
+By default, the value is 1.
+
+In general, a value slightly above the number of CPU cores available is ideal.
+Performance may degrade if the number is too high.
+
+[NOTE]
+This option is currently not supported on MinGW builds of NESFab, 
+due to that platform having a buggy implementation of threads.
+
+*Command-line usage:*
+----
+nesfab --threads 4
+----
+
+*Configuration file usage:*
+----
+threads = 4
+----
+
+=== `error-on-warning` (`-W`)
+
+This option turns warnings into errors and halts compilation whenever a warning occurs.
+This option expects no arguments and can only be specified once.
+
+*Command-line usage:*
+----
+nesfab --error-on-warning
+----
+
+*Configuration file usage:*
+----
+error-on-warning = 1
+----
+
+=== `pause`
+
+This option pauses the compiler before exiting until input is received on stdin.
+It is intended to be used on Microsoft Windows to keep the Command Prompt window open until you're ready to close it.
+This option expects no arguments.
+
+*Command-line usage:*
+----
+nesfab --pause
+----
+
+*Configuration file usage:*
+----
+pause = 1
+----
+
+To make NESFab always pause on Microsoft Windows, first create a shortcut to the NESFab executable.
+Then, in the shortcut's properties, put `--pause` after the target path.
+
+=== `sloppy`
+
+This option improves compilation speed at the cost of program optimization. 
+It can be disabled on a per-function basis with the modifier <<mod_flags, `-sloppy`>>.
+
+*Command-line usage:*
+----
+nesfab --sloppy
+----
+
+*Configuration file usage:*
+----
+sloppy = 1
+----
+
+=== `--*ram-init`
+
+`--ram-init`, `--sram-init`, and `--vram-init` cause their respective memory regions to be initialized to zero on reset.
+This initialization happens by writing a `0` byte to each address, ignoring any banking behavior the mapper may have.
+
+[NOTE]
+It's not recommended to use these compiler options, and it may result in brittle code.
+Instead, initialize variables and VRAM using code.
+
+*Command-line usage:*
+----
+nesfab --ram-init --sram-init --vram-init
+----
+
+*Configuration file usage:*
+----
+--ram-init = 1
+--sram-init = 1
+--vram-init = 1
+----
+
+== Supported Mappers [[mappers]]
+
+NESFab supports a small set of https://www.nesdev.org/wiki/Mapper[mappers],
+which determine the capabilities of a cartridge.
+The choice of mapper determines the amount of space available for code, the https://www.nesdev.org/wiki/Mirroring[nametable mirroring], and https://www.nesdev.org/wiki/CHR_ROM_vs._CHR_RAM[whether CHR data is stored in RAM or ROM].
+
+*For beginners:* It is recommended to start with `nrom` (the default), 
+and only consider switching once your program grows too large for it.
+
+*For information on how to configure NESFab for a specific mapper, see:*
+
+- <<opt_mapper>>
+- <<opt_mirroring>>
+- <<opt_prg>>
+- <<opt_chr>>
+- <<opt_bus_conflicts>>
+- <<opt_sram>>
+
+=== `nrom` [[mapper_nrom]]
+
+https://www.nesdev.org/wiki/NROM[*NESDev Wiki Page*]
+
+NROM is the simplest mapper.
+It is easy to use and offers good performance, but is lacking in features and memory size.
+
+[NOTE]
+8 KiB variants of NROM are not currently supported.
+
+*Memory Sizes:*
+
+|===
+|Name |Min |Max |Default
+
+| <<opt_prg, PRG (Code)>>
+| 16 KiB
+| 32 KiB
+| 32 KiB
+
+| <<opt_chr, CHR (Tilesets)>>
+| 8 KiB
+| 8 KiB
+| 8 KiB
+
+|===
+
+*Other Details:*
+
+[cols="1,2"]
+|===
+|Name |Description
+
+| <<opt_mirroring, Mirroring>>
+| Fixed H or V
+
+| <<opt_bus_conflicts, Bus Conflicts>>
+| N/A
+
+| <<opt_sram, SRAM>>
+| By default, no
+
+| <<kw_state, `state` Register>>
+| N/A
+
+| <<opt_unsafe_bank_switch, Unsafe Bank Switches>>
+| N/A
+
+|===
+
+=== `anrom` [[mapper_anrom]]
+
+https://www.nesdev.org/wiki/AxROM[*NESDev Wiki Page*]
+
+ANROM is similar to <<mapper_bnrom, BNROM>>, but allows mirroring to be changed on the fly.
+
+[NOTE]
+Related mappers like AMROM can be had using configuration options.
+
+*Memory Sizes:*
+
+|===
+|Name |Min |Max |Default
+
+| <<opt_prg, PRG (Code)>>
+| 32 KiB
+| 512 KiB
+| 256 KiB
+
+| <<opt_chr, CHR (Tilesets)>>
+| 8 KiB (RAM)
+| 8 KiB (RAM)
+| 8 KiB (RAM)
+
+|===
+
+*Other Details:*
+
+[cols="1,2"]
+|===
+|Name |Description
+
+| <<opt_mirroring, Mirroring>>
+| 1-Page switchable
+
+| <<opt_bus_conflicts, Bus Conflicts>>
+| By default, no
+
+| <<opt_sram, SRAM>>
+| By default, no
+
+| <<kw_state, `state` Register>>
+| Bit 4 changes mirroring
+
+| <<opt_unsafe_bank_switch, Unsafe Bank Switches>>
+| Acceptable risk
+
+|===
+
+=== `bnrom` [[mapper_bnrom]]
+
+https://www.nesdev.org/wiki/BNROM[*NESDev Wiki Page*]
+
+BNROM supports a huge amount of PRG, making it an excellent choice for large games.
+
+*Memory Sizes:*
+
+|===
+|Name |Min |Max |Default
+
+| <<opt_prg, PRG (Code)>>
+| 32 KiB
+| 8192 KiB
+| 128 KiB
+
+| <<opt_chr, CHR (Tilesets)>>
+| 8 KiB (RAM)
+| 8 KiB (RAM)
+| 8 KiB (RAM)
+
+|===
+
+*Other Details:*
+
+[cols="1,2"]
+|===
+|Name |Description
+
+| <<opt_mirroring, Mirroring>>
+| Fixed H or V
+
+| <<opt_bus_conflicts, Bus Conflicts>>
+| By default, yes
+
+| <<opt_sram, SRAM>>
+| By default, no
+
+| <<kw_state, `state` Register>>
+| N/A
+
+| <<opt_unsafe_bank_switch, Unsafe Bank Switches>>
+| N/A
+
+|===
+
+=== `unrom` [[mapper_unrom]]
+
+https://www.nesdev.org/wiki/UxROM[*NESDev Wiki Page*]
+
+UNROM supports lots of PRG, like BNROM, but differs in that it has a fixed bank.
+Because of this, UNROM requires manual ROM layout with the <<mod_flags, `+static` modifier>>.
+
+[NOTE]
+Typically, BNROM is better for NESFab than UNROM, as it does not require the use of `+static`.
+
+*Memory Sizes:*
+
+|===
+|Name |Min |Max |Default
+
+| <<opt_prg, PRG (Code)>>
+| 32 KiB
+| 4096 KiB
+| 64 KiB
+
+| <<opt_chr, CHR (Tilesets)>>
+| 8 KiB (RAM)
+| 8 KiB (RAM)
+| 8 KiB (RAM)
+
+|===
+
+*Other Details:*
+
+[cols="1,2"]
+|===
+|Name |Description
+
+| <<opt_mirroring, Mirroring>>
+| Fixed H or V
+
+| <<opt_bus_conflicts, Bus Conflicts>>
+| By default, yes
+
+| <<opt_sram, SRAM>>
+| By default, no
+
+| <<kw_state, `state` Register>>
+| N/A
+
+| <<opt_unsafe_bank_switch, Unsafe Bank Switches>>
+| N/A
+
+|===
+
+=== `30` (UNROM 512) [[mapper_30]]
+
+https://www.nesdev.org/wiki/UNROM_512[*NESDev Wiki Page*]
+
+Mapper 30 is an extended form of UNROM with CHRRAM banking.
+Like UNROM, mapper 30 requires manual ROM layout with the <<mod_flags, `+static` modifier>>.
+
+*Memory Sizes:*
+
+|===
+|Name |Min |Max |Default
+
+| <<opt_prg, PRG (Code)>>
+| 32 KiB
+| 512 KiB
+| 512 KiB
+
+| <<opt_chr, CHR (Tilesets)>>
+| 32 KiB (RAM)
+| 32 KiB (RAM)
+| 32 KiB (RAM)
+
+|===
+
+*Other Details:*
+
+[cols="1,2"]
+|===
+|Name |Description
+
+| <<opt_mirroring, Mirroring>>
+| Fixed H, V, 4, or 1
+
+| <<opt_bus_conflicts, Bus Conflicts>>
+| By default, no
+
+| <<opt_sram, SRAM>>
+| By default, no
+
+| <<kw_state, `state` Register>>
+| High 3 bits switch CHR and mirroring
+
+| <<opt_unsafe_bank_switch, Unsafe Bank Switches>>
+| Acceptible risk
+
+|===
+
+=== `cnrom` [[mapper_cnrom]]
+
+https://www.nesdev.org/wiki/CNROM[*NESDev Wiki Page*]
+
+CNROM is similar to <<mapper_nrom, NROM>>, but has multiple CHR banks.
+
+*Memory Sizes:*
+
+|===
+|Name |Min |Max |Default
+
+| <<opt_prg, PRG (Code)>>
+| 32 KiB
+| 32 KiB
+| 32 KiB
+
+| <<opt_chr, CHR (Tilesets)>>
+| 8 KiB
+| 2048 KiB
+| 32 KiB
+
+|===
+
+*Other Details:*
+
+[cols="1,2"]
+|===
+|Name |Description
+
+| <<opt_mirroring, Mirroring>>
+| Fixed H or V
+
+| <<opt_bus_conflicts, Bus Conflicts>>
+| N/A
+
+| <<opt_sram, SRAM>>
+| By default, no
+
+| <<kw_state, `state` Register>>
+| Sets CHR bank.
+
+| <<opt_unsafe_bank_switch, Unsafe Bank Switches>>
+| N/A
+
+|===
+
+=== `gnrom` [[mapper_gnrom]]
+
+https://www.nesdev.org/wiki/GxROM[*NESDev Wiki Page*]
+
+GNROM offers both PRG and CHR banks.
+
+[NOTE]
+Related mappers like MHROM can be had using configuration options.
+
+*Memory Sizes:*
+
+|===
+|Name |Min |Max |Default
+
+| <<opt_prg, PRG (Code)>>
+| 32 KiB
+| 512 KiB
+| 128 KiB
+
+| <<opt_chr, CHR (Tilesets)>>
+| 8 KiB (RAM)
+| 128 KiB (RAM)
+| 32 KiB (RAM)
+
+|===
+
+*Other Details:*
+
+[cols="1,2"]
+|===
+|Name |Description
+
+| <<opt_mirroring, Mirroring>>
+| Fixed H or V
+
+| <<opt_bus_conflicts, Bus Conflicts>>
+| By default, yes
+
+| <<opt_sram, SRAM>>
+| By default, no
+
+| <<kw_state, `state` Register>>
+| Low 4 bits switch CHR
+
+| <<opt_unsafe_bank_switch, Unsafe Bank Switches>>
+| Acceptable risk
+
+|===
+
+=== `colordreams` [[mapper_colordreams]]
+
+https://www.nesdev.org/wiki/Color_Dreams[*NESDev Wiki Page*]
+
+COLORDREAMS is similar to <<mapper_gnrom, GNROM>>, but reverses the bank switching nybbles.
+
+[NOTE]
+PRG above 128 KiB may not be supported on physical cartridges.
+
+*Memory Sizes:*
+
+|===
+|Name |Min |Max |Default
+
+| <<opt_prg, PRG (Code)>>
+| 32 KiB
+| 512 KiB
+| 128 KiB
+
+| <<opt_chr, CHR (Tilesets)>>
+| 8 KiB (RAM)
+| 128 KiB (RAM)
+| 128 KiB (RAM)
+
+|===
+
+*Other Details:*
+
+[cols="1,2"]
+|===
+|Name |Description
+
+| <<opt_mirroring, Mirroring>>
+| Fixed H or V
+
+| <<opt_bus_conflicts, Bus Conflicts>>
+| By default, yes
+
+| <<opt_sram, SRAM>>
+| By default, no
+
+| <<kw_state, `state` Register>>
+| High 4 bits switch CHR
+
+| <<opt_unsafe_bank_switch, Unsafe Bank Switches>>
+| Acceptable risk
+
+|===
+
+=== `gtrom` [[mapper_gtrom]]
+
+https://www.nesdev.org/wiki/GTROM[*NESDev Wiki Page*]
+
+GTROM is a modern mapper designed to be cheap while offering a wide range of features.
+
+[NOTE]
+See the standard library file `lib/mapper/gtrom.fab`.
+
+*Memory Sizes:*
+
+|===
+|Name |Min |Max |Default
+
+| <<opt_prg, PRG (Code)>>
+| 32 KiB
+| 512 KiB
+| 512 KiB
+
+| <<opt_chr, CHR (Tilesets)>>
+| 16 KiB (RAM)
+| 16 KiB (RAM)
+| 16 KiB (RAM)
+
+|===
+
+*Other Details:*
+
+[cols="1,2"]
+|===
+|Name |Description
+
+| <<opt_mirroring, Mirroring>>
+| Fixed 4
+
+| <<opt_bus_conflicts, Bus Conflicts>>
+| Never
+
+| <<opt_sram, SRAM>>
+| By default, no
+
+| <<kw_state, `state` Register>>
+| High 4 bits switch nametable, CHR, and LEDs
+
+| <<opt_unsafe_bank_switch, Unsafe Bank Switches>>
+| Acceptable risk
+
+|===
+
+=== `mmc1` [[mapper_mmc1]]
+
+https://www.nesdev.org/wiki/MMC1[*NESDev Wiki Page*]
+
+MMC1 is a flexible ASIC mapper with CHR banking and mirroring controls. 
+Unfortunately, MMC1 is very slow to interface.
+
+[NOTE]
+See the standard library file `lib/mapper/mmc1.fab`.
+
+*Memory Sizes:*
+
+|===
+|Name |Min |Max |Default
+
+| <<opt_prg, PRG (Code)>>
+| 32 KiB
+| 256 KiB
+| 256 KiB
+
+| <<opt_chr, CHR (Tilesets)>>
+| 8 KiB
+| 128 KiB
+| 128 KiB
+
+|===
+
+*Other Details:*
+
+[cols="1,2"]
+|===
+|Name |Description
+
+| <<opt_mirroring, Mirroring>>
+| Switchable H, V, or 1
+
+| <<opt_bus_conflicts, Bus Conflicts>>
+| Never
+
+| <<opt_sram, SRAM>>
+| By default, no
+
+| <<kw_state, `state` Register>>
+| Sets internal $8000 register
+
+| <<opt_unsafe_bank_switch, Unsafe Bank Switches>>
+| Not recommended
+
+|===
+
+=== `mmc3` [[mapper_mmc3]]
+
+https://www.nesdev.org/wiki/MMC3[*NESDev Wiki Page*]
+
+MMC3 is a flexible ASIC mapper with CHR banking, mirroring controls, and a scanline counter. 
+Because MMC3 uses fixed banks, it requires manual ROM layout with the <<mod_flags, `+static` modifier>>.
+See <<mapper_189, mapper `189`>> for an alternative.
+
+[NOTE]
+In NESFab's implementation of MMC3, the two highest bits of `$8000` cannot and should not be set.
+When writing to `$8000`, leave the two highest bits zero.
+
+[NOTE]
+See the standard library file `lib/mapper/mmc3.fab`.
+
+*Memory Sizes:*
+
+|===
+|Name |Min |Max |Default
+
+| <<opt_prg, PRG (Code)>>
+| 32 KiB
+| 2048 KiB
+| 512 KiB
+
+| <<opt_chr, CHR (Tilesets)>>
+| 8 KiB
+| 256 KiB
+| 256 KiB
+
+|===
+
+*Other Details:*
+
+[cols="1,2"]
+|===
+|Name |Description
+
+| <<opt_mirroring, Mirroring>>
+| Switchable H or V
+
+| <<opt_bus_conflicts, Bus Conflicts>>
+| Never
+
+| <<opt_sram, SRAM>>
+| By default, no
+
+| <<kw_state, `state` Register>>
+| N/A
+
+| <<opt_unsafe_bank_switch, Unsafe Bank Switches>>
+| Not recommended
+
+|===
+
+=== `189` (MMC3 Variant) [[mapper_189]]
+
+https://www.nesdev.org/wiki/INES_Mapper_189[*NESDev Wiki Page*]
+
+Mapper 189 is a https://www.nesdev.org/wiki/MMC3[MMC3] variant originally designed for bootleg games.
+Is it an excellent choice for those wanting MMC3 features in NESFab, but has the caveat of being an uncommon mapper.
+Unlike <<mapper_mmc3>>, it does not support SRAM.
+
+[NOTE]
+Unlike <<mapper_mmc3, MMC3>>, mapper 189 allows the highest bit of `$8000` to be set.
+
+[NOTE]
+See the standard library file `lib/mapper/mmc3.fab`.
+
+*Memory Sizes:*
+
+|===
+|Name |Min |Max |Default
+
+| <<opt_prg, PRG (Code)>>
+| 32 KiB
+| 512 KiB
+| 128 KiB
+
+| <<opt_chr, CHR (Tilesets)>>
+| 256 KiB
+| 256 KiB
+| 256 KiB
+
+|===
+
+*Other Details:*
+
+[cols="1,2"]
+|===
+|Name |Description
+
+| <<opt_mirroring, Mirroring>>
+| Switchable H or V
+
+| <<opt_bus_conflicts, Bus Conflicts>>
+| Never
+
+| <<opt_sram, SRAM>>
+| No
+
+| <<kw_state, `state` Register>>
+| N/A
+
+| <<opt_unsafe_bank_switch, Unsafe Bank Switches>>
+| Acceptible risk
+
+|===
+
+=== `mmc5` [[mapper_mmc5]]
+
+https://www.nesdev.org/wiki/MMC5[*NESDev Wiki Page*]
+
+MMC5 is a powerful ASIC mapper with many features.
+Notably, it extends rendering with 8x8 background attributes, per-tile banking,
+and vertical splits, extends audio with expansion channels, provides a scanline counter,
+and even has hardware to perform multiplication.
+
+Unfortunately, MMC5 is a difficult mapper to reproduce and emulate, 
+meaning it's not usually recommended for homebrew releases.
+
+[NOTE]
+See the standard library file `lib/mapper/mmc5.fab`.
+
+*Memory Sizes:*
+
+|===
+|Name |Min |Max |Default
+
+| <<opt_prg, PRG (Code)>>
+| 128 KiB
+| 1024 KiB
+| 1024 KiB
+
+| <<opt_chr, CHR (Tilesets)>>
+| 128 KiB
+| 1024 KiB
+| 1024 KiB
+
+|===
+
+*Other Details:*
+
+[cols="1,2"]
+|===
+|Name |Description
+
+| <<opt_mirroring, Mirroring>>
+| Switchable
+
+| <<opt_bus_conflicts, Bus Conflicts>>
+| Never
+
+| <<opt_sram, SRAM>>
+| By default, yes
+
+| <<kw_state, `state` Register>>
+| N/A
+
+| <<opt_unsafe_bank_switch, Unsafe Bank Switches>>
+| Recommended
+
+|===
+
+[NOTE]
+Enabling <<opt_unsafe_bank_switch>> enables NESFab to use the MMC5 multiplication hardware for arithmetic.
+
+[NOTE]
+Enabling <<opt_expansion_audio>> enables NESFab to use the MMC5's expanded sound channels.
+
+=== `rainbow` [[mapper_rainbow]]
+
+https://github.com/BrokeStudio/rainbow-net/blob/master/NES/mapper-doc.md[*GitHub Documentation]
+https://www.nesdev.org/wiki/NES_2.0_Mapper_682[*NESDev Wiki Page*]
+
+Rainbow is a modern ASIC mapper with many features similar to <<mapper_mmc5>>,
+designed for commercial homebrew releases.
+Because it is so recent, emulation support may be spotty.
+
+[NOTE]
+See the standard library file `lib/mapper/rainbow.fab`.
+
+*Memory Sizes:*
+
+|===
+|Name |Min |Max |Default
+
+| <<opt_prg, PRG (Code)>>
+| 32 KiB
+| 8192 KiB
+| 8192 KiB
+
+| <<opt_chr, CHR (Tilesets)>>
+| 8 KiB
+| 8192 KiB
+| 8192 KiB
+
+|===
+
+*Other Details:*
+
+[cols="1,2"]
+|===
+|Name |Description
+
+| <<opt_mirroring, Mirroring>>
+| Switchable
+
+| <<opt_bus_conflicts, Bus Conflicts>>
+| Never
+
+| <<opt_sram, SRAM>>
+| By default, yes
+
+| <<kw_state, `state` Register>>
+| N/A
+
+| <<opt_unsafe_bank_switch, Unsafe Bank Switches>>
+| N/A
+
+|===
+
+[NOTE]
+Enabling <<opt_expansion_audio>> enables NESFab to use Rainbow's expanded sound channels.
+
+
+== Identifiers [[identifiers]]
+
+Identifiers may contain letters, numbers, and underscores, but they cannot start with a number.
+To differentiate types names from other identifiers, the following rules apply:
+
+- User-defined types are written in `PascalCase`
+- Other definitions are written in `snake_case` or `UPPERCASE_SNAKE_CASE`.
+
+For top-level definitions, identifiers beginning with `_` are visible only in their containing file.
+In other languages, this behavior is sometimes called `private`.
+
+Example:
+----
+Foo    // A type name.
+foo    // A definition which isn't a type.
+_foo   // An identifier only visible to this file.
+----
+
+== Value Semantics [[value_semantics]]
+
+Values in NESFab are always passed and stored by https://en.wikipedia.org/wiki/Value_type_and_reference_type[value, not by reference].
+This means that when you call a function, its parameters will be copies of the arguments passed.
+
+For example:
+----
+fn foo(U x) U
+    x += 5
+    return x
+
+fn bar()
+    U y = 10
+    U z = foo(y)
+----
+
+At the end of `bar`, variable `y` will have the value `10`, while variable `z` will have the value `15`. 
+
+== Indentation
+
+Indentation refers to the spaces at the beginning of each line.
+In NESFab, indentation is significant and alters the behavior of code.
+
+Indentation is used to create **code blocks**, where every line but the first is indented using spaces (not tabs).
+The amount of spaces is up to you, but it must be consistent throughout the block.
+----
+FIRST LINE
+    INDENTED LINE
+    INDENTED LINE
+    INDENTED LINE
+----
+*Code blocks* can be nested:
+----
+FIRST BLOCK
+    INDENTED LINE
+    INDENTED LINE
+    SECOND BLOCK
+        INDENTED LINE
+        INDENTED LINE
+    THIRD BLOCK
+        INDENTED LINE
+        INDENTED LINE
+
+----
+
+== Banks [[banks]]
+
+The NES uses a 16-bit address space, but most games need more data than 16-bits can represent. 
+To overcome this limitation, machine code can be broken up into segments called "banks", 
+and hardware on the cartridge can switch between these banks at runtime.
+
+In NESFab, banks are automatically handled for you, meaning you do not need to worry about them much.
+However, it is still useful to know a bit about them, to clarify how things work under the hood.
+
+*Pointers and Addressing: Implementation Details*
+
+When banks are involved, rather than addressing using 16-bit pointers, 24-bit pointers are used instead.
+A 24-bit pointer can be seen as a 16-bit address paired with an 8-bit integer representing the bank.
+
+When dereferencing a 24-bit pointer, 
+first the bank is swapped into memory using the 8-bit integer,
+then the data is read using the 16-bit address.
+The caveat is, the machine code performing the dereference needs to be in memory too.
+Depending on the <<mappers, mapper>>, this can involve duplicating the machine code across multiple banks,
+or storing the machine code in a specific location which won't be switched out.
+
+== Groups [[groups]]
+
+Groups organize globals together based on how they are used in the program.
+In NESFab, each global variable and <<type_paa, pointer-addressible array>> is associated with a group.
+
+There are two ways to declare groups: `vars` and `data`.
+
+- <<kw_vars, `vars`>> is for variables (RAM).
+- <<kw_data, `data`>> is for read-only data (ROM).
+
+Furthermore, `data` has two variants: `data` and `omni data`.
+
+
+- <<kw_data, `data`>> is for read-only data that exists at a single address in a single <<banks, bank>>.
+- <<kw_omni, `omni data`>> is for read-only data that exists at a single address, but is duplicated across multiple <<banks, banks>>.
+
+As a guideline, `omni data` uses more ROM space, but has better performance than `data`.
+Typically, it is recommended to use `data` for most everything, and only use `omni data` for small look-up tables that are frequently used.
+
+[NOTE]
+
+The variables and data belonging to groups are always global and exist at top-level scope.
+
+*Why groups?*
+
+To the programmer, the purpose of groups are:
+
+- To organize code.
+- To specify the storage of a variable.
+
+To the compiler, the purpose of groups are:
+
+- To enable the compiler to smartly allocate variables by reusing RAM addresses.
+- To facilitate <<mappers, mappers>> with multiple banks, enabling smarter linking.
+- To simplify pointer aliasing optimizations.
+
+*When are groups mentioned?*
+
+- When declaring groups.
+- In <<type_ptr, pointer>> types.
+- In a <<mod_preserves>> modifier.
+- In a <<mod_stows>> modifier.
+- In an <<mod_employs>> modifier.
+- In a <<mod_vars>> modifier.
+- In a <<mod_data>> modifier.
+
+*How does one use groups?*
+
+For variables, it often makes sense to have at least one `vars` group per `mode`:
+----
+vars /main_menu
+    U cursor_y
+
+vars /game
+    U player_x
+    U player_y
+----
+
+Often, certain variables will be used across different modes.
+These can receive their own groups:
+----
+vars /high_scores
+    UU high_score = 0
+
+vars /settings
+    Bool swap_buttons = false
+    Bool mute = false
+----
+
+You can use these variables without any special syntax. 
+The compiler infers everything for you:
+----
+fn move_right()
+    player_x += 1
+----
+
+The exception to this is when defining an `asm fn`. 
+The compiler cannot infer the groups it uses, and so an <<mod_employs>> modifier is required:
+
+----
+asm fn move_right()
+: employs /game
+    inc &player_x
+    rts
+----
+
+For data, create a group for each schema.
+----
+data /levels
+    [] level1
+        // ... 
+    [] level2
+        // ... 
+
+data /songs
+    [] song1
+        // ... 
+    [] song2
+        // ... 
+----
+
+Then you can use pointers to access this data:
+----
+fn load_level(CCC/levels level)
+    // ...
+----
+
+== Comments
+
+NESFab supports two kinds of https://en.wikipedia.org/wiki/Comment_(computer_programming)[comments]: single-line and multi-line.
+
+=== Single-Line Comments
+
+Single-line comments begin with the character sequence `//`, and terminate at the end of the line.
+
+----
+// This is a single-line comment.
+
+ct U foo = 10 // You can put them after lines of code to document it.
+----
+
+=== Multi-Line Comments
+
+Multi-line comments begin with the character sequence `/\*` on a new line, and terminate with the character sequence `*/`, followed by a line ending.
+
+[NOTE]
+Unlike other languages, multi-line comments cannot share lines with code.
+
+----
+/*
+   This is a multi-line
+   comment!
+*/
+
+/* This is also a 
+   multi-line comment! */
+
+ct U foo = 10 /* This won't compile. 
+Multi-line comments cannot share lines with code. */
+
+/*
+   This won't compile.
+   Multi-line comments cannot share lines with code.
+*/ ct U foo = 10
+----
+
+== Byte Blocks [[byte_blocks]]
+
+Byte blocks are a special syntax used to define inline assembly code and <<paa_type, PAA>> data.
+
+=== Typed Data [[byte_blocks_typed_data]]
+
+Data can be inserted into byte blocks using a syntax identical to <<casts, casts>>.
+
+Syntax:
+----
+Type(values...)
+----
+
+- `Type` is a type name.
+- `values` are a comma-separated list of expressions.
+
+The value is <<casts, cast>>, then inserted into the byte block with the following order:
+
+- For numeric types, the bytes are inserted in little-endian order.
+- For <<type_struct, structures>>, the first member is inserted first, then the second, and so on.
+- For <<type_tea, TEAs>>, the first element is inserted first, then the second, and so on.
+- For <<type_vec, VECs>>, the first element is inserted first, then the second, and so on.
+
+Example:
+----
+data /some_group
+    [] some_data
+        U(10)
+        UU(2000)
+        U[3](1,2,3)
+----
+
+=== Untyped Data [[byte_blocks_untyped_data]]
+
+The type name of <<byte_blocks_typed_data, typed data>> can be elided,
+causing the type to inferred from the expression.
+
+Syntax:
+----
+(values)
+----
+
+- `values` is an expression.
+
+The value is inserted into the byte block following the rules of <<byte_blocks_typed_data, typed data>>.
+
+Example:
+----
+data /some_group
+    [] some_data
+        (U(10) + U(20))
+        (UU(300).x)
+----
+
+=== Assembly Instructions
+
+Assembly instructions can be inserted into byte blocks with a syntax similar to 6502 assemblers.
+
+Syntaxes:
+----
+op           // Implied
+op #num      // Immediate
+op addr      // Direct (Zero page or absolute)
+op addr      // Relative
+op (addr)    // Indirect
+op addr, x   // Direct, X
+op addr, y   // Direct, Y
+op (addr, y) // Indirect, X
+op (addr), y // Indirect, Y
+----
+
+- `op` is one of the op codes listed below in all uppercase, or all lowercase letters.
+- `num` is a value of type <<type_integer, `U`>>.
+- `addr` is a value of type <<type_address, `AA`>>.
+
+Valid Op Codes:
+----
+adc
+and
+asl
+bcc
+bcs
+beq
+bit
+bmi
+bne
+bpl
+brk
+bvc
+bvs
+clc
+cld
+cli
+clv
+cmp
+cpx
+cpy
+dec
+dex
+dey
+eor
+inc
+inx
+iny
+jmp
+jsr
+lda
+ldx
+ldy
+lsr
+nop
+ora
+pha
+php
+pla
+plp
+rol
+ror
+rti
+rts
+sbc
+sec
+sed
+sei
+sta
+stx
+sty
+tax
+tay
+tsx
+txa
+txs
+tya
+lax
+axs
+anc
+alr
+arr
+sax
+skb
+ign
+dcp
+isc
+rla
+rra
+slo
+sre
+----
+
+Example:
+----
+data /some_group
+    [] some_data
+        lda #30
+        sta $2003
+        ldy #0
+        lda ($2000), y
+        sta ($00, x)
+----
+
+=== Special Statements
+
+The following statements have special meaning inside of byte blocks:
+
+- <<kw_label_asm, `label`>>
+- <<kw_nmi_asm, `nmi`>>
+
+In addition, the following statements have special meaning inside of <<kw_asm, `asm fn`>> byte blocks:
+
+- <<kw_fn_asm, `fn`>>
+- <<kw_goto_asm, `goto`>>
+- <<kw_goto_mode_asm, `goto mode`>>
+- <<kw_switch_asm, `switch`>>
+- <<kw_push_asm, `push`>>
+- <<kw_pop_asm, `pop`>>
+
+== Function Pointers and Function Sets [[fn_ptr]]
+
+Although NESFab supports function pointers, their use is more limited when compared to other languages.
+
+For a function to compatible with function pointers, it must belong to a function set.
+Function sets are defined by prefixing the function's name with a set name, followed by a period:
+----
+fn foo.bar() // Declare a function 'bar' in the function set 'foo'.
+
+fn foo.qux() // Declare another function 'qux' in the function set 'foo'.
+----
+
+All functions belonging to the set must have the same type signature.
+
+To reference a function belonging to a function set normally, you must include the function set name:
+----
+foo.bar() // Call 'bar'.
+----
+
+Using the `@` operator, you can retrieve a function pointer. 
+Note that function pointers have <<type_fn_ptr, `Fn` types.>>
+----
+Fn.foo my_ptr = @(foo.bar)
+----
+
+Function pointers can be called using the regular function call syntax:
+----
+Fn.foo my_ptr = @(foo.bar)
+my_ptr() // Call it.
+----
+
+*Limitation: One calling thread only*
+
+Unfortunately, function pointers can only be called from a single thread.
+For example, the code below will not compile, as it calls from two different threads:
+
+----
+vars
+    Fn.foo my_ptr
+
+nmi my_nmi()
+    my_ptr()
+
+irq my_irq()
+    my_ptr()
+----
+
+If you need behavior like this, avoid function pointers and instead use <<kw_switch>>.
+
+*Limitation: No asm support*
+
+Currently, function pointers cannot be called from `asm fn` contexts.
+
+== Keywords
+
+=== `if` [[kw_if]]
+
+The `if` <<statement, statement>> allows for conditional execution of <<blocks, code blocks>>.
+It behaves like `if` in most programming languages.
+
+Syntax:
+----
+if expression
+    code block
+----
+
+The conditional expression of `if` will be converted to `Bool`.
+If this evaluates to `true`, the body of the `if` statement will be executed.
+
+==== `if` statement (byte block) [[kw_if_asm]]
+
+In byte blocks, the `if` statement enables conditional compilation of byte block data.
+
+Syntax:
+----
+if condition
+    byte block
+----
+
+- `condition` is a compile-time constant value convertable to `Bool`.
+
+Example:
+----
+lda #10
+if MY_CONSTANT == 3
+    sta &foo
+tax
+----
+
+[NOTE]
+In the current implementation, named labels cannot exist inside conditional blocks.
+Anonymous labels can, with caveats.
+
+=== `else`
+
+The `else` <<statement, statement>> allows for control flow to branch between two <<blocks, code blocks>>.
+It behaves like `else` in most programming languages.
+
+This statement must be paired with a corresponding `if.`
+
+Syntax:
+----
+if expression
+    code block
+else
+    code block
+----
+
+If the corresponding `if` evaluates to `false`, the body of the `else` statement will be executed.
+
+For visual appeal, other statements may follow the `else` keyword on the same line, including `if`, `for`, and `while`.
+This looks like:
+
+----
+if expression
+    code block
+else if expression
+    code block
+else
+    code block
+----
+
+==== `else` (byte block) [[kw_else_asm]]
+
+Like <<kw_if_asm>>, `else` is also usable in byte blocks.
+
+=== `while` [[kw_while]]
+
+The `while` <<statement, statement>> allows for looping control flow.
+It behaves like `while` in most programming languages.
+
+Syntax:
+----
+while condition
+    code block
+----
+
+`condition` is an expression converted to `Bool`. While this expression evaluates to `true`, the loop body will execute.
+After the code in `code block` executes, control flow jumps back to the `condition` test.
+
+*Modifiers:*
+
+- <<mod_flags, `-unroll`, `+unroll`>>
+- <<mod_flags, `+unloop`>>
+
+=== `for` [[kw_for]]
+
+The `for` <<statement, statement>> allows for looping control flow, with more features than <<kw_while>>.
+It behaves like `for` in most programming languages.
+
+Syntax:
+----
+for initialization ; condition ; iteration
+    code block
+----
+
+- `initialization` executes before the loop and can be an expression or a variable initialization.
+- `condition` is an expression converted to `Bool`. While this expression evaluates to `true`, the loop body will execute.
+- `iteration` is an expression to be run at the end of every iteration (following the code block).
+
+Any of these expressions may be empty. An empty `condition` is equivalent to `true`.
+
+After the code in `code block` executes, `iteration` executes, and then control flow jumps back to the `condition` test.
+
+Like `while`, the keywords <<kw_break>> and <<kw_continue>> may be used inside of a `for`.
+
+For visual appeal, the expressions of `for` may be put on separate lines starting with the `;` character, like so:
+
+----
+for initialization
+; condition
+; iteration
+    code block
+----
+
+*Modifiers:*
+
+- <<mod_flags, `-unroll`, `+unroll`>>
+- <<mod_flags, `+unloop`>>
+
+=== `do` [[kw_do]]
+
+The `do` keyword can be prefixed to either <<kw_while>> or <<kw_for>> to alter their behavior.
+A loop with `do` skips the `condition` check of its first iteration.
+
+Syntax:
+----
+do while condition
+    code block
+
+do for initialization ; condition ; iteration
+    code block
+----
+
+*Modifiers:*
+
+- <<mod_flags, `-unroll`, `+unroll`>>
+- <<mod_flags, `+unloop`>>
+
+[NOTE]
+Loops written with `do` often have better runtime performance than loops written without.
+
+=== `break` [[kw_break]]
+
+`break` ends the execution of the containing <<kw_while>>, <<kw_for>>, or <<kw_switch>> statement.
+It behaves like `break` in most programming languages.
+
+Syntax:
+----
+break
+----
+
+Example:
+----
+for U i = 0; i < 10; i += 1
+    if array[i] == 0
+        break // Exits the loop
+----
+
+If you want to exit out of multiple nested statements, use <<kw_goto>>.
+
+=== `continue` [[kw_continue]]
+
+`continue` is used inside <<kw_while>> or <<kw_for>> statements,
+and causes control flow to jump to the end of the loop's code block.
+It behaves like `condition` in most programming languages.
+
+Syntax:
+----
+continue
+----
+
+Example:
+----
+for U i = 0; i < 10; i += 1
+    if array[i] == 0
+        continue // If this executes, the line below it won't.
+    array[i] += i
+----
+
+=== `switch` [[kw_switch]]
+
+The `switch` statement branches control flow based on an byte value.
+`switch` is similar to <<kw_if>>, but instead of having a choice between two code blocks, 
+`switch` allows multiple. It behaves like `switch` in most programming languages.
+
+Syntax:
+----
+switch expression
+    code block
+----
+
+`expression` must be of type `U` or `S`.
+
+`switch` is intended to be used with <<kw_case>> and <<kw_default>>.
+Both of these label where control flow will jump.
+
+Example:
+----
+switch player_state
+    case 0
+        do_run()
+        break
+
+    case 1
+        do_jump()
+        break
+
+    case 2
+        do_kick()
+        break
+
+    default:
+        do_nothing()
+        break
+----
+
+==== `switch` statement (byte block) [[kw_switch_asm]]
+
+In byte blocks, the `switch` statement causes the mapper to bank switch to a specified <<banks, bank>>.
+
+Syntax:
+----
+switch regs
+----
+
+- `regs` specifies which registers are holding the bank to switch to. The accepted values are `a,` `x`, `y`, and `ax`,
+  where `ax` requires registers A and X to hold the same value.
+
+Example:
+----
+ldy &my_bank1 // Load the bank in registers Y
+switch y      // Switch to the bank in that register
+
+lax &my_bank2 // Load the bank in registers A and X
+switch ax     // Switch to the bank in those registers
+----
+
+=== `case` [[kw_case]]
+
+`case` is used inside of <<kw_switch>> statements as a label.
+Control flow will jump to the `case` from the `switch` if the switch's expression matches the `case` value.
+
+Syntax:
+----
+case constant expression
+    code block
+----
+
+`constant expression` is an expression which can be computed at compile-time.
+
+The `code block` of `case` exists only to provide a scope.
+There is no other difference between the syntax above, and this:
+
+----
+case constant expression
+code block
+----
+
+As stated, `case` is a label.
+It can appear inside other statements such as <<kw_for>> or <<kw_if>>.
+
+See more examples in <<kw_switch>>.
+
+=== `default` [[kw_default]]
+
+`default` is used inside of <<kw_switch>> statements as a label.
+Control flow will jump to the `default` from the `switch` if the switch's expression matches no enclosed <<hw_case>> statement.
+
+Syntax:
+----
+default
+    code block
+----
+
+The `code block` of `default` exists only to provide a scope.
+There is no other difference between the syntax above, and this:
+
+----
+default
+code block
+----
+
+As stated, `default` is a label.
+It can appear inside other statements such as <<kw_for>> or <<kw_if>>.
+
+See more examples in <<kw_switch>>.
+
+=== `goto` [[kw_goto]]
+
+The keyword `goto` has use in two different types of statements: `goto` and `goto mode`.
+
+==== `goto` statement [[kw_goto_statement]]
+
+The `goto` statement causes control flow to jump to a corresponding <<kw_label>> in the same function.
+It behaves like `goto` in most programming languages.
+
+Syntax:
+----
+goto identifier
+----
+
+`identifier` refers to the name of a label in the current function.
+
+Example:
+
+----
+fn example()
+    U i = 0
+    label loop
+    i += 1
+    if i < 10
+        goto loop
+----
+
+`goto` can also jump to anonymous labels.
+
+Syntax:
+----
+goto label+number
+goto label-number
+----
+
+`number` refers relatively to an anonymous label. Positive refers to labels occuring later in the code, while negative labels occur prior.
+
+Example:
+
+----
+fn example()
+    U i
+    label
+    i = 5
+    label
+    i += 1
+    if i < 10
+        goto label-1 // Jump backwards to the previous label
+    goto label-2 // Jump backwards two labels
+----
+
+Note that named labels do not affect the anonymous label numbering scheme.
+
+==== `goto mode` statement [[kw_goto_mode_statement]]
+
+The `goto mode` statement causes control flow to jump to a <<kw_mode, `mode`>>, 
+discarding the current call stack and starting anew.
+In the process, global variables will be reset to their initial value,
+unless they are explicitly preserved using <<mod_preserves>> in the `goto mode` statement.
+
+Syntax:
+----
+goto mode identifier(arguments)
+: preserves /groups
+----
+
+- `identifier` if the name of a <<kw_mode>> function.
+- `arguments` is a comma-separated list of expressions to be passed to the `mode` function. The list may be blank.
+- `groups` are a list of <<kw_vars>> groups, denoting which variables should not be reset. The list may be blank.
+
+Note that `preserves` is a required <<modifier, modifier>> of this statement.
+
+Example:
+
+----
+vars /my_vars
+    U some_var = 10
+
+mode foo()
+    goto mode bar(some_var + 1)
+    : preserves
+
+mode bar(U some_argument)
+    my_vars = some_argument
+
+    goto mode foo()
+    : preserves /my_vars
+----
+
+==== `goto` (assembly byte block) [[kw_goto_asm]]
+
+In assembly functions, the `goto` statement causes control to switch execution to another function,
+clobbering all registers in the process.
+It behaves similar to the <<kw_fn_asm, `fn` assembly statement>>, but does not return.
+
+Syntax:
+----
+goto fn_identifier
+----
+
+- `fn_identifier` is the name of a function.
+
+If the function accepts arguments, those arguments must be set prior to the `goto` statement.
+
+Example:
+----
+fn foo(U x)
+    // ...
+
+asm fn bar()
+: employs
+    default
+        lda #5
+        sta &foo.x      // Set the argument
+        goto foo
+----
+
+==== `goto mode` (assembly byte block) [[kw_goto_mode_asm]]
+
+In assembly functions, the `goto mode` statement causes control to switch execution to a mode,
+clobbering all registers, discarding the current call stack, and starting anew.
+In the process, global variables will be reset to their initial value,
+unless they are explicitly preserved using <<mod_preserves>> in the `goto mode` statement.
+It behaves similar to the <<kw_goto_mode, `fn` assembly statement>>.
+
+Syntax:
+----
+goto mode mode_identifier
+: preserves /groups
+----
+
+- `mode_identifier` if the name of a <<kw_mode>> function.
+- `groups` are a list of <<kw_vars>> groups, denoting which variables should not be reset. The list may be blank.
+
+Note that `preserves` is a required <<modifier, modifier>> of this statement.
+
+Example:
+
+----
+vars /my_vars
+    U some_var = 10
+
+mode foo()
+    // ...
+
+asm fn bar()
+    goto mode foo
+    : preserves /my_vars
+----
+
+=== `label` [[kw_label]]
+
+The `label` statement introduces a point which a <<kw_goto_statement>> can jump to . 
+It has no effect otherwise.
+It behaves like labels in most programming languages, albeit with a slightly different syntax.
+
+Syntax:
+----
+label identifier
+    code_block
+----
+
+- `identifier` is an optional unique name of the label.
+- `code_block` is an optional indented code block.
+
+Labels without identifires are called anonymous labels and can be referenced using a special <<kw_goto>> syntax.
+
+The `code_block` of `label` exists only to provide a scope.
+There is no other difference between the syntax above, and this:
+
+----
+label identifier
+code_block
+----
+
+==== `label` statement (byte block) [[kw_label_asm]]
+
+Labels give names to specific addresses inside of byte blocks. 
+They behave similarly to <<kw_ct, `ct`>> definitions, defining values of type <<type_address, `AA` and `AAA`>>.
+
+Syntax:
+----
+label identifier
+    byte_block
+----
+
+- `identifier` is an optional unique name for the label.
+- `byte_block` is an optional indented byte block to be inserted into the containing byte block.
+
+Labels without identifires are called anonymous labels and can be referenced using the <<kw_label_expr>> syntax.
+
+The `byte_block` of `label` exists only to provide a scope.
+There is no other difference between the syntax above, and this:
+
+----
+label identifier
+byte_block
+----
+
+Example:
+----
+data /some_group
+    [] some_data
+        label foo
+            jmp foo
+----
+
+In the current byte block implementation, when an anonymous label is placed inside an <<kw_if_asm>> block, it is scoped to that `if` block.
+See the example code below for insight.
+
+----
+data /some_group
+    [] some_data
+        jmp label+ // Ignores the label inside the 'if' block:
+        if true
+            jmp label+ // Jumps to the next label inside the 'if' block.
+            label
+            jmp label+ // Jumps to the next label outside the 'if' block.
+        label
+----
+
+=== `return` [[kw_return]]
+
+==== `return` statement [[kw_return_statement]]
+
+The `return` statement ends the execution of the current function,
+using its argument as the function's return value.
+It behaves like `return` in most programming languages.
+
+Syntax:
+----
+return expression
+----
+
+Syntax for functions lacking a return value:
+----
+return
+----
+
+==== `label` expression (byte block) [[kw_label_expr]]
+
+In byte block contexts, `label` can be used as an expression.
+
+Syntax:
+----
+label+number
+label-number
+----
+
+`number` refers relatively to an anonymous label. Positive refers to labels occuring later in the code, while negative labels occur prior.
+
+Example:
+
+----
+asm fn example()
+: employs
+    default
+        label
+        jmp label-1 // Jump to the previous anonymous label.
+----
+
+Note that named labels do not affect the anonymous label numbering scheme.
+
+==== `return` expression [[kw_return_expression]]
+
+A `return` expression *does not cause functions to return*. 
+Instead, it provides a handle to the current function's return value.
+Although the value itself cannot be used, the address of can be taken using <<unary_ops, unary operator>> `&`,
+
+This functionality exists because of <<kw_asm, inline assembly>>.
+Most often, it is used to allow inline assembly functions to return values
+by storing into the address.
+
+Example:
+----
+AA return_addr = &return
+----
+
+=== `swap` [[kw_swap]]
+
+The `swap` statement exchanges its arguments, assigning the first to the second and the second to the first.
+
+Syntax:
+----
+swap a, b
+----
+- `a` and `b` are lvalue expressions.
+
+Example:
+----
+fn foo()
+    U x = 10
+    U y = 20
+    swap x, y
+    // Now x = 20 and y = 10.
+----
+
+=== `push` [[kw_push]]
+
+The `push` expression inserts values onto a <<type_vec, VEC value>>.
+The expression returns a copy of its second argument.
+
+Syntax:
+----
+push(vec, elem, index)
+----
+- `vec` is an lvalue expression with a <<type_vec, VEC type>>.
+- `elem` is a value to be inserted into `vec`.
+- `index` is an optional value of type `Int`.
+
+When `index` is not included, `elem` is appended onto the end of `vec`.
+Otherwise, `elem` is inserted before the value at `index`.
+
+Example:
+----
+ct fn foo()
+    U{} vec = U{}()
+    push(vec, 10)
+    push(vec, 20)
+    push(vec, 30, 0)
+    // Now vec = U{}(30, 10, 20)
+----
+
+==== `push` statement (byte block) [[kw_push_asm]]
+
+In byte blocks, the `push` statement pushes the current bank onto the stack.
+
+Syntax:
+----
+push
+----
+
+Example:
+----
+push          // Save the current bank
+
+ldy &my_bank1 // Load the bank in registers Y
+switch y      // Switch to the bank in that register
+
+pop           // Restore the previous bank
+----
+
+=== `pop` [[kw_pop]]
+
+The `pop` expression removes a value from a <<type_vec, VEC value>>, returning the removed valued.
+
+Syntax:
+----
+pop(vec, index)
+----
+- `vec` is an lvalue expression with a <<type_vec, VEC type>>.
+- `index` is an optional value of type `Int`.
+
+When `index` is not included, `elem` is removed from the end of `vec`.
+Otherwise, `elem` is removed at position `index`.
+
+Example:
+----
+ct fn foo()
+    U{} vec = U{}(30, 10, 20)
+    U x = pop(vec, 0)
+    U y = pop(vec)
+    U z = pop(vec)
+    // Now x = 30, y = 20, z = 10
+----
+
+==== `pop` statement (byte block) [[kw_pop_asm]]
+
+In byte blocks, the `pop` statement pops a bank from the stack and switches to it.
+
+Syntax:
+----
+pop
+----
+
+Example:
+----
+push          // Save the current bank
+
+ldy &my_bank1 // Load the bank in registers Y
+switch y      // Switch to the bank in that register
+
+pop           // Restore the previous bank
+----
+
+=== `fence` [[kw_fence]]
+
+The `fence` statement is used for both writing concurrent code, and for interacting with hardware. 
+It imposes constraints on how global variables are loaded and stored,
+preventing the compiler from reordering them.
+
+More precisely:
+
+- Every global variable the function is tracking will be stored before the `fence` executes.
+- Every global variable the function is tracking will be loaded after the `fence` executes.
+
+A function tracks a global variable if it reads or writes that variable, or if it calls another function that does.
+When dereferencing a pointer, the pointer's groups define the set of globals to track.
+
+[NOTE]
+`fence` does not instruct the compiler *which* globals to track.
+To do that, the modifier <<kw_employs>> is required.
+
+*Why is `fence` a thing in concurrent code?*
+
+The NESFab compiler performs optimizations which moves loads and stores around.
+This is normally fine, but issues arise due to interrupts.
+
+To illustrate, take a look at the code below:
+----
+foo = 10
+bar = 20
+----
+The compile is free to reorder these global variable assignments, storing into `bar` before `foo`.
+However, imagine if an interrupt were to occur between these stores.
+The interrupt would see that `bar` equals `20`, but not `foo` equals `10`,
+as the store to `foo` hasn't happened yet.
+
+To prevent this reordering, a `fence` statement can be used:
+----
+foo = 10
+fence
+bar = 20
+----
+Now if the interurpt sees that `bar` equals `20`, `foo` must equal `10`.
+
+*Why is `fence` a thing in sequential code?*
+
+Optimizations which reorder code can affect sequential code, too.
+For example, consider the following code which turns the grayscale bit of `PPUMASK` on until `game_update` completes.
+Visually, this will depict how long it takes for `game_update` to run by displaying a grayscale stripe on the screen.
+
+----
+while true
+    {PPUMASK}(PPUMASK_GRAYSCALE_ON | PPUMASK_ON)
+    game_update()
+    {PPUMASK}(PPUMASK_ON)
+    nmi
+----
+
+Unfortunately, this code may not work as intended. 
+The compiler is allowed to reorder the `game_update` call and move it before the first `PPUMASK` write, or after the second `PPUMASK` write.
+This is because the compiler sees no connection between the two; there is no dependency from one to another, as they do not involve the same global variables.
+
+To fix the problem, two `fence` statements are used:
+----
+while true
+    {PPUMASK}(PPUMASK_GRAYSCALE_ON | PPUMASK_ON)
+    fence
+    game_update()
+    fence
+    {PPUMASK}(PPUMASK_ON)
+    nmi
+----
+These force the `game_update` call to remain between the `PPUMASK` writes.
+
+*Another purpose for `fence`:*
+
+`fence` is also used when interacting with the hardware directly.
+When reading or writing a global variable via its hardware address,
+two `fence` statements are recommended with the hardware access between them.
+These `fence` statements instruct the compiler to store the global before the hardware access,
+and load the value after it.
+
+A common example arises when doing https://www.nesdev.org/wiki/PPU_registers#OAMDMA[OAM DMA]:
+----
+fence
+{OAMDMA}((&oam).b)
+fence
+----
+
+Without the first `fence` instruction, the compiler would not recognize that global variables are being read.
+and so the resulting read may have incorrect results. 
+The second `fence`, although largely uncessary, ensures that future reads to `oam` occur after `OAMDMA` completes.
+
+Note that this only applies when an address is written, and that write has an effect which dereferences the address.
+It is not necessary to use `fence` when a value is passed normally:
+----
+// fence isn't needed here:
+{PPUDATA}(some_var)
+----
+
+Likewise, it is not necessary to use `fence` when the address is not dereferenced:
+----
+// fence isn't needed here:
+{PPUDATA}(&some_var.a)
+----
+
+*More on dependencies and side effects:*
+
+One way to think about `fence` is that the program is outputting a list of hardware reads and writes (i.e. those involving the PPU), and the compiler makes sure the order and the data written matches the original code. 
+
+=== `true` [[kw_true]]
+
+`true` is an expression of type `Bool`, and has a compile-time constant value.
+When converted to an integer type, it will have the value `1`.
+
+Syntax:
+----
+true
+----
+
+=== `false` [[kw_false]]
+
+`false` is an expression of type `Bool`, and has a compile-time constant value.
+When converted to an integer type, it will have the value `0`.
+
+Syntax:
+----
+false
+----
+
+=== `read` [[kw_read]]
+
+`read` is an expression used to access the value a pointer is pointing at, advancing the pointer in the process.
+
+Syntax:
+----
+read Type(ptr)
+----
+- `Type` is a type name. The expression will read a value of this type from the pointer, returning it.
+- `ptr` is an lvalue expression with a pointer type. The expression will increment the pointer by `sizeof Type` bytes.
+
+Example:
+----
+omni data
+    [] my_data
+        UU($1234)
+        UU($5678)
+
+mode main()
+    CC ptr = @my_data
+    UU first  = read UU(ptr)
+    UU second = read UU(ptr)
+----
+
+=== `write` [[kw_write]]
+
+`write` is an expression used to store a value at an address pointed-to by a pointer, advancing the pointer in the process.
+The expression returns no value.
+
+Syntax:
+----
+write Type(ptr, expr)
+----
+- `Type` is a type name. The expression will write a value of this type to the pointer.
+- `ptr` is an lvalue expression with a pointer type. The expression will increment the pointer by `sizeof Type` bytes.
+- `expr` is an  expression of type `Type`. The value will be written at `ptr`.
+
+Example:
+----
+vars
+    [] my_data
+        UU($1234)
+        UU($5678)
+
+mode main()
+    MM ptr = @my_data
+    write UU(ptr, $1234)
+    write UU(ptr, $5678)
+----
+
+=== `ready` [[kw_ready]]
+
+`ready` is an expression of type `Bool` which returns `true` if both an <<nmi, NMI>> is active and the program was <<kw_nmi, waiting on one>>,
+or `false` otherwise. 
+It is intended to be used as a synchronization primitive (https://en.wikipedia.org/wiki/Lock_(computer_science)[mutex])
+to avoid https://en.wikipedia.org/wiki/Race_condition[race conditions] inside of NMI handlers.
+
+Syntax:
+----
+ready
+----
+
+In general, if `ready` is `true`, all global variables are in a stable, concurrent-safe state.
+Likewise, if `ready` is `false`, either no NMI is happening, or the program is lagging one or more frames.
+
+Example:
+----
+nmi foo()
+    if ready
+        upload_data()
+        poll_controller()
+    play_music()
+----
+
+The address of `ready` can be taken using <<unary_ops, unary operator>> `&`,
+but the pointed-to value must never be modified by the program.
+
+[NOTE]
+There is more than one way to achieve concurrent safety. See <<kw_fence>>, for example.
+
+=== `nmi_counter` [[kw_nmi_counter]]
+
+`nmi_counter` is an expression of type `U` whose value is incremented after each <<nmi, NMI>>.
+It can be used for timing purposes, to create simple animations, or to detect when NMI has occured.
+
+Syntax:
+----
+nmi_counter
+----
+
+The address of `nmi_counter` can be taken using <<unary_ops, unary operator>> `&`,
+but the pointed-to value must never be modified by the program.
+
+=== `state` [[kw_state]]
+
+Some <<mappers, mappers>> have registers which combine bank switching with other functionality.
+For example, `ANROM` uses a bit to track the cartridge's mirroring, and lets the programmer switch it on the fly. 
+`state` expressions read or write these <<mappers, mapper>> registers while correctly handling the bank.
+
+See the <<mappers, mappers page>> what `state` means for each mapper.
+
+[NOTE]
+The NESFab runtime duplicates the mapper's register state to a fixed location in RAM.
+Reading the state will return this copy instead of polling the hardware.
+
+==== `state` read
+
+`state` is an expression of type `U` which returns the mapper's last-set register state.
+
+Syntax:
+----
+state()
+----
+
+Example:
+----
+U foo = state()
+----
+
+The address of `state` can be taken using <<unary_ops, unary operator>> `&`.
+This address refers to the copy in RAM; modifying it does not notify the hardware.
+
+==== `state` write
+
+`state` is an expression of type `Void` which sets the mapper's register state.
+
+Syntax:
+----
+state(expr)
+----
+
+- `expr` is an expression of type `U`. The state will be assigned this value.
+
+Example:
+----
+state(5) // The state will have a value of 5
+----
+
+[NOTE]
+
+You should not alter the bits reserved for the mapper's bank.
+Leave these bits set to `0`, or otherwise the program may crash.
+
+=== `system` [[kw_system]]
+
+`system` is an expression of type `U` which returns the <<opt_system, current NES system>>.
+
+Syntax:
+----
+system
+----
+
+The possible return values are listed below:
+
+|===
+|Enumeration |Value
+
+| <<kw_system_ntsc>>
+| 0
+
+| <<kw_system_pal>>
+| 1
+
+| <<kw_system_dendy>>
+| 2
+
+| <<kw_system_unknown>>
+| 3
+
+|===
+
+Example:
+----
+fn foo()
+    if system == SYSTEM_NTSC
+        speed = 1.0
+    else
+        speed = 1.2
+----
+
+When the <<opt_system, `system` option>> is set to `detect`, the value will be determined at program startup.
+Additionally, the address of `system` can be taken using <<unary_ops, unary operator>> `&`,
+but the pointed-to value must never be modified by the program.
+
+When the <<opt_system, `system` option>> is not set to `detect`, the expression is a compile-time constant
+and its address cannot be taken.
+
+==== `SYSTEM_NTSC` [[kw_system_ntsc]]
+
+`SYSTEM_NTSC` is an expression of type `Int`, and has a compile-time constant value of `0`.
+
+Syntax:
+----
+SYSTEM_NTSC
+----
+
+==== `SYSTEM_PAL` [[kw_system_pal]]
+
+`SYSTEM_PAL` is an expression of type `Int`, and has a compile-time constant value of `1`.
+
+Syntax:
+----
+SYSTEM_PAL
+----
+
+==== `SYSTEM_DENDY` [[kw_system_dendy]]
+
+`SYSTEM_DENDY` is an expression of type `Int`, and has a compile-time constant value of `2`.
+
+Syntax:
+----
+SYSTEM_DENDY
+----
+
+==== `SYSTEM_UNKNOWN` [[kw_system_unknown]]
+
+`SYSTEM_UNKNOWN` is an expression of type `Int`, and has a compile-time constant value of `3`.
+
+Syntax:
+----
+SYSTEM_UNKNOWN
+----
+
+=== PPU Registers [[kw_ppu_regs]]
+
+The following https://www.nesdev.org/wiki/PPU_registers[PPU registers] have keywords.
+All of these are expressions of type `AA` with compile-time constant values.
+
+
+|===
+|Enumeration |Value
+
+| <<kw_ppuctrl>>
+| $2000
+
+| <<kw_ppumask>>
+| $2001
+
+| <<kw_ppustatus>>
+| $2002
+
+| <<kw_oamaddr>>
+| $2003
+
+| <<kw_oamdata>>
+| $2004
+
+| <<kw_ppuscroll>>
+| $2005
+
+| <<kw_ppuaddr>>
+| $2006
+
+| <<kw_ppudata>>
+| $2007
+
+| <<kw_oamdma>>
+| $4014
+
+|===
+
+
+==== `PPUCTRL` [[kw_ppuctrl]]
+
+`PPUCTRL` is an expression of type `AA`, and has a compile-time constant value of `$2000`.
+
+Syntax:
+----
+PPUCTRL
+----
+
+https://www.nesdev.org/wiki/PPU_registers#Controller_($2000)_%3E_write[Wiki page for this PPU register].
+
+==== `PPUMASK` [[kw_ppumask]]
+
+`PPUMASK` is an expression of type `AA`, and has a compile-time constant value of `$2001`.
+
+Syntax:
+----
+PPUMASK
+----
+
+https://www.nesdev.org/wiki/PPU_registers#Mask_($2001)_%3E_write[Wiki page for this PPU register].
+
+==== `PPUSTATUS` [[kw_ppustatus]]
+
+`PPUSTATUS` is an expression of type `AA`, and has a compile-time constant value of `$2002`.
+
+Syntax:
+----
+PPUSTATUS
+----
+
+https://www.nesdev.org/wiki/PPU_registers#Status_($2002)_%3C_read[Wiki page for this PPU register].
+
+==== `OAMADDR` [[kw_oamaddr]]
+
+`OAMADDR` is an expression of type `AA`, and has a compile-time constant value of `$2003`.
+
+Syntax:
+----
+OAMADDR
+----
+
+https://www.nesdev.org/wiki/PPU_registers#OAM_address_($2003)_%3E_write[Wiki page for this PPU register].
+
+==== `OAMDATA` [[kw_oamdata]]
+
+`OAMDATA` is an expression of type `AA`, and has a compile-time constant value of `$2004`.
+
+Syntax:
+----
+OAMDATA
+----
+
+https://www.nesdev.org/wiki/PPU_registers#OAM_data_($2004)_%3C%3E_read/write[Wiki page for this PPU register].
+
+==== `PPUSCROLL` [[kw_ppuscroll]]
+
+`PPUSCROLL` is an expression of type `AA`, and has a compile-time constant value of `$2005`.
+
+Syntax:
+----
+PPUSCROLL
+----
+
+https://www.nesdev.org/wiki/PPU_registers#Scroll_($2005)_%3E%3E_write_x2[Wiki page for this PPU register].
+
+==== `PPUADDR` [[kw_ppuaddr]]
+
+`PPUADDR` is an expression of type `AA`, and has a compile-time constant value of `$2006`.
+
+Syntax:
+----
+PPUADDR
+----
+
+https://www.nesdev.org/wiki/PPU_registers#Address_($2006)_%3E%3E_write_x2[Wiki page for this PPU register].
+
+==== `PPUDATA` [[kw_ppudata]]
+
+`PPUDATA` is an expression of type `AA`, and has a compile-time constant value of `$2007`.
+
+Syntax:
+----
+PPUDATA
+----
+
+https://www.nesdev.org/wiki/PPU_registers#Data_($2007)_%3C%3E_read/write[Wiki page for this PPU register].
+
+==== `OAMDMA` [[kw_oamdma]]
+
+`OAMDMA` is an expression of type `AA`, and has a compile-time constant value of `$4014`.
+
+Syntax:
+----
+OAMDMA
+----
+
+https://www.nesdev.org/wiki/PPU_registers#OAM_DMA_($4014)_%3E_write[Wiki page for this PPU register].
+
+=== `fn` [[kw_fn]]
+
+The `fn` keyword declares a 
+https://en.wikipedia.org/wiki/Function_(computer_programming)[function]
+at global scope.
+
+Syntax:
+----
+fn identifier(parameters) ReturnType
+    code block
+----
+
+- `identifier` is the name of the function.
+- `parameters` is a comma-separated list of variables with the syntax `Type name`.
+- `ReturnType` is a type name, but is optional. Leaving `ReturnType` blank is the same as specifying it as `Void`.
+- `code block` is the block of code which implements the function.
+
+Functions can only be declared at global-scope.
+Unlike other programming languages, functions in NESFab cannot be nested or recursive.
+
+*Modifiers:*
+
+- <<mod_employs>>.
+- <<mod_data>>.
+- <<mod_vars>>.
+- <<mod_flags, `+zero_page`, `-zero_page`>>
+- <<mod_flags, `+inline`, `-inline`>>
+- <<mod_flags, `+graphviz`>>
+- <<mod_flags, `+info`>>
+- <<mod_flags, `+static`>>
+- <<mod_flags, `+static_fixed`>>
+- <<mod_flags, `+sloppy`, `-sloppy`>>
+
+Example:
+----
+fn foo(U p1, U p2) U
+    return p1 + p2
+----
+
+==== `fn` statement (assembly byte block) [[kw_fn_asm]]
+
+In assembly functions, the `fn` statement calls a NESFab function,
+clobbering all registers in the process.
+
+[NOTE]
+Unlike the `JSR` instruction, the `fn` statement correctly handles the NESFab calling convention and runtime.
+
+Syntax:
+----
+fn fn_identifier
+----
+
+- `fn_identifier` is the name of a function.
+
+If the function accepts arguments, those arguments must be set prior to the `fn` statement.
+If the function returns a value, it can be retrieved via <<kw_return_expression, `return`>>.
+
+Example:
+----
+fn foo(U x) U
+    return x + x
+
+asm fn bar()
+: employs
+    default
+        lda #5
+        sta &foo.x       // Set the argument
+        fn foo           // Call the function
+        lda #&foo.return // Read the return value
+        sta PPUDATA
+        rts
+----
+
+=== `ct` [[kw_ct]]
+
+`ct` is short for _compile-time_. 
+The keyword can be prefixed onto value and function declarations to *insist* that their computations occur at compile-time.
+
+==== `ct fn`
+
+Syntax:
+----
+ct fn identifier(parameters) ReturnType
+----
+
+`ct fn` has the same syntax as <<kw_fn>>. 
+
+==== `ct` value
+
+Syntax:
+----
+ct TypeName identifier = value
+----
+
+`ct` values are declared with the syntax of regular variables, but must be defined a value.
+
+They can be declared at global scope, or inside functions.
+
+=== `mode` [[kw_mode]]
+
+The `mode` keyword declares a mode function at global scope. 
+Modes are similar to <<kw_fn, regular functions>>, but they do not return.
+Instead, the only way to leave a mode function is via a <<kw_goto_mode_statement>>.
+
+Syntax:
+----
+mode identifier(parameters)
+    code block
+----
+
+- `identifier` is the name of the mode function.
+- `parameters` is a comma-separated list of variables with the syntax `Type name`.
+- `code block` is the block of code which implements the mode function.
+
+Every program is required to have a mode named `main` defined, which takes no parameters.
+When the program starts, execution will begin at `main`.
+This behavior is similar to `main` functions found in other programming languages.
+
+Modes can be assigned a corresponding <<kw_nmi_decl, nmi>> function, using a <<modifiers, modifier>>.
+While the mode function is executing, NMIs will be handled using the supplied `nmi` function.
+
+*Modifiers:*
+
+- <<mod_nmi>>.
+- <<mod_irq>>.
+- <<mod_employs>>.
+- <<mod_data>>.
+- <<mod_vars>>.
+- <<mod_flags, `+zero_page`, `-zero_page`>>
+- <<mod_flags, `+graphviz`>>
+- <<mod_flags, `+info`>>
+- <<mod_flags, `+static`>>
+- <<mod_flags, `+static_fixed`>>
+- <<mod_flags, `+sloppy`, `-sloppy`>>
+
+Example:
+----
+mode main()
+: nmi my_nmi
+    while true
+        x = x + 1
+----
+
+*Why do modes exist?*
+
+There are two reasons.
+
+First, it is convenient to be able to change what the program is doing deep inside a function call.
+For example, in a video game it can be useful to define one `mode` for the main menu, 
+and another one for the actual gameplay. 
+To switch between the two, a `goto mode` statement can be used anywhere in the program,
+which is nicer than having to use variables and switch-cases.
+
+But more importantly, modes allow the compiler to smartly allocate memory,
+enabling variables used in different modes to share RAM addresses.
+This happens transparently from the programmer; no https://en.wikipedia.org/wiki/Tagged_union[sum types] needed.
+
+=== `nmi` [[kw_nmi]]
+
+The keyword `nmi` can be used as a statement, a declaration, or as <<mod_nmi, a modifier>>.
+
+==== `nmi` statement [[kw_nmi_statement]]
+
+The `nmi` statement blocks execution until an <<kw_nmi_function>> occurs.
+Until the `nmi` statement returns, <<kw_ready>> will evaluate to <<kw_true>>.
+
+Syntax:
+----
+nmi
+----
+
+==== `nmi` statement (byte block) [[kw_nmi_asm]]
+
+In byte blocks, the `nmi` statement blocks execution until an <<kw_nmi_function>> occurs,
+clobbering all registers in the process.
+Until the `nmi` statement returns, <<kw_ready>> will evaluate to <<kw_true>>.
+
+Syntax:
+----
+nmi
+----
+
+==== `nmi` function [[kw_nmi_function]]
+
+The `nmi` keyword declares an https://www.nesdev.org/wiki/NMI[NMI] interrupt function at global scope. 
+NMI interrupts are similar to <<kw_fn, regular functions>>, but they have no parameters, cannot return values, and cannot be called.
+Instead, they execute once per frame at the start of https://en.wikipedia.org/wiki/Vertical_blanking_interval[VBLANK],
+so long as bit 7 of https://www.nesdev.org/wiki/PPU_registers#PPUCTRL[PPUCTRL] is set.
+
+Syntax:
+----
+nmi identifier()
+    code block
+----
+
+- `identifier` is the name of the mode function.
+- `code block` is the block of code which implements the mode function.
+
+*Modifiers:*
+
+- <<mod_employs>>.
+- <<mod_data>>.
+- <<mod_vars>>.
+- <<mod_flags, `+zero_page`, `-zero_page`>>
+- <<mod_flags, `+graphviz`>>
+- <<mod_flags, `+info`>>
+- <<mod_flags, `+static`>>
+- <<mod_flags, `+static_fixed`>>
+- <<mod_flags, `+sloppy`, `-sloppy`>>
+
+*Why do NMI interrupt functions exist?*
+
+NMI interrupts provide a way for code to detect the vertical blanking interval (VBLANK).
+This is important, as most modifications to the https://www.nesdev.org/wiki/PPU[PPU's] state
+require that rendering be turned off, and VBLANK is one such time.
+
+Since the NMI interrupt occurs once per frame, it's also convenient to use it as a timer.
+Typically, game updates are run in sync with the NMI, 
+as otherwise the game would speed up or slow down based on how much computation is happening.
+
+=== `irq` [[kw_irq]]
+
+The keyword `irq` can be used as a statement, a declaration, or as <<mod_irq,a modifier>>.
+
+==== `irq` statement [[kw_irq_statement]]
+
+The `irq` statement is used to enable or disable IRQ interrupt handling.
+When disabled, no IRQ functions will be called.
+
+Syntax:
+----
+irq expr
+----
+
+- `expr` is an expression of type `Bool`.
+
+Example:
+
+----
+irq true // Enable IRQs
+----
+
+[NOTE]
+The `irq` statement corresponds to assembly instructions `SEI` and `CLI`.
+
+==== `irq` function [[kw_irq_function]]
+
+The `irq` keyword declares an https://www.nesdev.org/wiki/IRQ[irq] interrupt function at global scope. 
+IRQ interrupts are similar to <<kw_fn, regular functions>>, but they have no parameters, cannot return values, and cannot be called.
+Instead, they are triggered by hardware such as the https://www.nesdev.org/wiki/APU_Frame_Counter[APU frame counter],
+or https://www.nesdev.org/wiki/MMC3[MMC3] scanline counter.
+
+Syntax:
+----
+irq identifier()
+    code block
+----
+
+- `identifier` is the name of the mode function.
+- `code block` is the block of code which implements the mode function.
+
+*Modifiers:*
+
+- <<mod_employs>>.
+- <<mod_data>>.
+- <<mod_vars>>.
+- <<mod_flags, `+zero_page`, `-zero_page`>>
+- <<mod_flags, `+graphviz`>>
+- <<mod_flags, `+info`>>
+- <<mod_flags, `+static`>>
+- <<mod_flags, `+static_fixed`>>
+- <<mod_flags, `+sloppy`, `-sloppy`>>
+- <<mod_flags, `+solo_interrupt`>>
+
+[NOTE]
+`asm` can be applied to `irq`, so long as <<mod_flags, `+solo_interrupt`>> and <<mod_flags, `+static`>> are used.
+
+=== `asm` [[kw_asm]]
+
+The `asm` keyword declares an function at global scope using <<byte_blocks, byte block>> inline assembly syntax. 
+
+Syntax:
+----
+asm fn identifier(parameters) ReturnType
+: employs /groups
+    vars
+        local vars
+    byte block
+----
+
+- `identifier` is the name of the function.
+- `parameters` is a comma-separated list of variables with the syntax `Type name`.
+- `ReturnType` is a type name, but is optional. Leaving `ReturnType` blank is the same as specifying it as `Void`.
+- `/groups` is an optional list of groups that the function uses. See <<kw_employs>>.
+- `local vars` is a line-separated list of variables with the syntax `Type name`.
+- `byte block` is the <<byte_blocks, byte block>> of code which implements the function.
+
+A special `default` label is required in each `asm` function,
+and specifies the entry point to the function.
+
+Example:
+----
+asm fn waste_time()
+: employs
+    vars
+        U counter
+    default
+        lda #0
+    label loop
+        sta &counter
+        inc &countner
+        bne loop
+        rts
+----
+
+*Modifiers:*
+
+- <<mod_employs>>.
+- <<mod_data>>.
+- <<mod_vars>>.
+- <<mod_flags, `+zero_page`, `-zero_page`>>
+- <<mod_flags, `+info`>>
+
+The labels of an `asm` function are visible using the <<member_access, `.` operator>>.
+Although the address cannot be taken of these labels, it is possible to call them like functions.
+
+Example:
+----
+waste_time.loop()
+----
+
+[NOTE]
+`asm` can be applied to `irq`, so long as <<mod_flags, `+solo_interrupt>> and `+static` are used.
+`asm` is not currently supported with `nmi`.
+
+=== `struct` [[kw_struct]]
+
+The `struct` keyword is used to define new types (https://en.wikipedia.org/wiki/Record_(computer_science)[records]) at global scope.
+It behaves similarly to the `struct` keyword in other languages.
+
+Syntax:
+----
+struct NewTypeName
+    fields
+----
+- `NewTypeName` is the name of the `struct`.
+- `fields` is a newline-separated list of fields, with the syntax `TypeName field_name`.
+
+Example:
+----
+struct Circle
+    S center_x
+    S center_y
+    UF radius
+----
+
+`struct` types may contain arrays and other `struct` types, 
+so long as multi-dimensional arrays are not created.
+
+Like all values in `NESFab`, `struct` types are passed by value.
+
+*Field Modifiers:*
+
+- <<mod_flags_fields, `+inherit`>>
+
+=== `vars` [[kw_vars]]
+
+The `vars` keyword declares a block of global variables, and potentially their <<groups, group>>.
+
+Syntax:
+----
+vars /group_name
+    variables
+----
+
+- `/group_name` is the optional name of the group that the variables will be part of. 
+- `variables` are global variables definitions with the syntax `TypeName identifier` or `TypeName identifier = value`.
+
+Assigning to a global variable in a `vars` block sets its initial value.
+The variable will reset to this value at the start of the program,
+but also whenever a <<kw_goto_mode_statement>> occurs and the variable's group is not <<mod_preserves, preserved>>
+
+The same `vars` group can be declared multiple times,
+with each declaration defining additional global variables.
+The group will be defined as the union of these declarations.
+
+*Variable modifiers:*
+
+- <<mod_flags, `+align`>>
+- <<mod_flags, `+zero_page`, `-zero_page`>>
+- <<mod_flags, `+sram`, `-sram`>>
+- <<mod_flags, `+unused`>>
+
+Example:
+----
+vars /my_group
+    U score = 0 // Set an initial value for 'score'
+    UU player_x
+    UU player_y
+
+vars /my_group
+    U speed
+----
+
+=== `data` [[kw_data]]
+
+The `data` keyword declares a <<groups, group>> and the pointer-addressable global constants inside of it.
+
+Syntax:
+----
+data /group_name
+    constants
+----
+
+- `group_name` is the mandatory name of the group that the constants will be part of.
+- `constants` are global constant definitions with the syntax `[optional_size] identifier`, followed by a <<byte_blocks, byte block>>.
+
+The same `data` group can be declared multiple times,
+with each declaration defining additional global variables.
+The group will be defined as the union of these declarations.
+
+*Constant modifiers:*
+
+- <<mod_flags, `+align`>>
+- <<mod_flags, `+dpcm`>>
+- <<mod_flags, `+sector`>>
+- <<mod_flags, `+static`>>
+- <<mod_flags, `+static_fixed`>>
+- <<mod_flags, `+unused`>>
+
+Example:
+----
+data /my_group
+    [4] player_speeds
+        U(1)
+        U(4)
+        U(8)
+        U(20)
+
+    [4] player_attacks
+        U(10)
+        U(20)
+        U(30)
+        U(40)
+----
+
+=== `omni` [[kw_omni]]
+
+The `omni` keyword can be prefixed to <<kw_data>> to alter its behavior.
+Groups declared using `omni` will have their data duplicated across every bank of the ROM.
+Pointers to data inside this group will not include a bank field (e.g. type `CC` instead of `CCC`).
+
+Syntax:
+----
+omni data /group_name
+    constants
+----
+
+- `group_name` is the optional name of the group that the constants will be part of.
+- `constants` are global constant definitions with the syntax `[optional_size] identifier`, followed by a <<byte_blocks, byte block>>.
+
+*Why use `omni`?*
+
+Data inside an `omni` block can be accessed slightly quicker, at the expense of ROM size.
+Additionally, pointers to `omni` data take up only two bytes, as opposed to three.
+
+When using a <<mappers, mapper>> without PRG banks (such as NROM), it is strictly better to use `omni data` instead of `data`.
+
+=== `charmap` [[kw_charmap]]
+
+The `charmap` keyword defines character maps,
+which are sets of characters with a mapping from each character to byte values.
+It is used to specify text encoding, like 
+https://en.wikipedia.org/wiki/ASCII[ASCII],
+https://en.wikipedia.org/wiki/EBCDIC[EBCDIC],
+or https://en.wikipedia.org/wiki/MIK_(character_set)[MIK].
+
+*Syntax:*
+
+----
+charmap identifier("string", 's', offset)
+----
+
+- `identifier` is the name of the charmap. This is optional. When left out, the default `charmap` is defined.
+- `"string"` is a string literal, defining the characters of the charmap. 
+  The first character in the string will map to a value of `offset` (or zero if `offset` is not defined), 
+  with other characters mapping to one higher than the character preceding them. 
+- `'s'` is an optional character literal, defining the sentinel. When left out, no sentinel is defined.
+- `offset` is an optional integer literal, defining the value of the first charmap element.
+
+*Modifiers:*
+
+- <<mod_stows>>
+
+Example:
+----
+charmap foo(" ,.!?ABCDEFGHIJKLMNOPQRSTUVWXYZ\0", '\0')
+
+// Defines the mapping:
+// ' ' = 0
+// ',' = 1
+// '.' = 2
+// '!' = 3
+// '?' = 4
+// 'A' = 5
+// 'B' = 6
+// 'C' = 7
+// ... and so on
+// with the sentinel being: '\0'
+----
+
+Example:
+----
+charmap bar("abcd", 10)
+: stows /strings
+
+// Defines the default charmap mapping:
+// 'a' = 10
+// 'b' = 11
+// 'c' = 12
+// 'd' = 13
+// with no sentinel,
+// and stowing its literals in group /strings.
+----
+
+*Shared Characters*
+
+The escape sequence `\/` has a special meaning inside of `charmap` definitions.
+A character preceding `\/` will map to the same value as the character following it.
+
+Commonly, `\/` is used when multiple characters can use the same glyph,
+such as `0` and `O`, or `1` and `I`.
+
+----
+charmap foo("_0\/O1\/I\/|X", '\0')
+
+// Defines the mapping:
+// '_' = 0
+// '0' = 1
+// 'O' = 1
+// '1' = 2
+// '|' = 2
+// 'I' = 2
+// 'X' = 3
+----
+
+*Sizes and Members*
+
+The number of unique values in a `charmap` can be accessed using the `size` member,
+which is a compile-time constant value of type `Int`.
+
+----
+charmap foo("abc")
+
+// The member 'size' is defined as:
+// foo.size = 3
+
+// Example use:
+ct U last_foo_char = foo.size - 1
+----
+
+To access the members of the default `charmap`, the expression `charmap` is used:
+
+----
+// Define the default charmap:
+charmap("xyz")
+
+// Access the default charmap using 'charmap':
+ct U last_default_char = charmap.size - 1
+----
+
+*Sentinels*
+
+For `charmaps` that define a sentinel character, two things occur:
+
+- String literals using the `charmap` have the sentinel character appended onto the end.
+- The member `sentinel` of type `U` is defined for `charmap`.
+
+The intention behind sentinel characters is to mark the end of strings.
+This can be used to mimic the behavior of the C programming language's https://en.wikipedia.org/wiki/Null-terminated_string[null-terminated strings].
+
+----
+charmap foo("abc", 'b') 
+
+// String literals have 'b' tacked on:
+// "string"foo[6] = 'b'
+// len("string"foo) = 7
+
+// The member 'sentinel' is defined for 'foo':
+// foo.sentinel = 1
+
+charmap c_string("\0abc", '\0') 
+
+// This literal is terminated by the value 0:
+// "hello world"c_string
+
+// The member 'sentinel' is defined for 'c_string':
+// c_string.sentinel = 0
+----
+
+Note that sentinels must have a mapping defined in the `charmap`.
+Doing so otherwise is an error.
+
+----
+charmap bad_charmap("abc", 'z') // Error! 'z' is not in the charmap!
+----
+
+*`stows` Group*
+
+`charmap` accepts a single group in its `stows` <<modifiers, modifiers>>.
+If defined, string literals using the `charmap` become valid operands to <<get_ptr, operator `@`>> and <<get_hw_addr, operator `&`>>.
+When using these operators, the contents of the string literal will exist in the group as data.
+
+Example:
+
+----
+charmap foo("ABCD")
+: stows /strings
+
+// Can now reference strings using literals:
+ct CCC/strings some_ptr = @"AAA"
+
+// This is akin to defining the string inside a 'data' block first:
+data /strings
+    [] some_string
+        ("AAA")
+// ... and then referencing it:
+ct CCC/strings another_ptr = @some_string
+----
+
+=== `chrrom`
+
+The `chrrom` keyword is only used for <<mappers, mappers>> which use CHR ROM (as opposed to CHR RAM).
+It specifies the data of the CHR ROM using a <<byte_blocks, byte block>> syntax.
+
+Syntax:
+----
+chrrom name(offset)
+    byte block
+----
+- `name` is an optional name which allows the `chrrom`'s labels to be accessed in code.
+- `offset` is an optional offset which determines which address the data gets stored. If left out, `offset` is treated as 0.
+
+Example:
+----
+// Store at offset $0000:
+chrrom
+    file(fmt, "sprites.png") 
+    file(fmt, "bg.png") 
+
+// Store at offset $2000:
+chrrom ($2000)
+    file(fmt, "more_sprites.png") 
+    file(fmt, "more_bg.png") 
+
+// Store at offset $4000 under the name 'foo':
+chrrom foo($4000)
+    file(fmt, "more_sprites.png") 
+    file(fmt, "more_bg.png") 
+----
+
+The compiler will issue a warning if the supplied data does not match what the mapper expects.
+
+`chrrom` blocks can have labels. If the `chrrom` is named, these labels can be accessed, returning their position in CHR memory.
+These labels have a value of type `Int`.
+
+Example:
+----
+chrrom foo
+    label spr
+        file(fmt, "sprites.png") 
+    label bg
+        file(fmt, "bg.png") 
+
+// Access the CHR addresses:
+ct Int bar = foo.spr
+ct Int qux = foo.bg
+----
+
+=== `file` [[kw_file]]
+
+The `file` keyword imports and converts data from an external file.
+It can be used as a statement in <<byte_blocks, byte blocks>>, or as an expression.
+
+Syntax:
+----
+file(target, "filename", args...)
+----
+
+- `target` specifies the output conversion target to use.
+- `"filename"` is a string literal path to the file.
+- `args...` is a list of arguments that the conversion script will use. (Most conversion scripts do not use arguments.)
+
+*Modifiers:*
+
+- <<mod_flags, `+spr_8x16`>>
+- <<mod_flags, `+palette_3`>>
+- <<mod_flags, `+palette_25`>>
+
+==== `file` expression
+
+`file` expressions produce compile-time constant values of type `U{}`.
+To use modifiers with them, write the modifiers on the same line.
+
+Example:
+----
+ct U{} my_data = file(fmt, "sprites.png") : +spr_8x16
+----
+
+==== `file` statement (byte block)
+
+`file` statements insert data into a <<byte_blocks, byte block>>.
+Unlike `file` expressions, these statements can can introduce <<accessory, accessory definitions>>.
+
+Example:
+----
+chrrom
+    file(fmt, "sprites.png") 
+    : +spr_8x16
+
+    file(fmt, "bg.png") 
+----
+
+==== Conversions
+
+*Input File Conversions*
+
+When loading a file, its data is first interpreted based on its https://en.wikipedia.org/wiki/Filename_extension[filename extension].
+The following filenames are accepted:
+
+[cols="1,3"]
+|===
+|File Format |Description
+
+| <<file_bin, `.bin`>>
+| Raw binary data
+
+| <<file_bin, `.chr`>>
+| Raw binary data
+
+| <<file_bin, `.nam`>>
+| Raw binary data
+
+| <<file_bin, `.map`>>
+| Nametable data
+
+| <<file_txt, `.txt`>>
+| Textual data
+
+| <<file_png, `.png`>>
+| https://en.wikipedia.org/wiki/PNG[PNG image]
+
+|===
+
+*Output Target Conversions*
+
+Once a file has been loaded, it is then converted based on its target.
+The following targets are accepted:
+
+[cols="1,3"]
+|===
+|Conversion Target |Description
+
+| <<file_raw, `raw`>>
+| Raw binary data
+
+| <<file_fmt, `fmt`>>
+| Formatted data
+
+| <<file_pbz, `pbz`>>
+| Compressed graphical data
+
+| <<file_donut, `donut`>>
+| Compressed graphical data
+
+| <<file_rlz, `rlz`>>
+| Compressed data
+
+|===
+
+==== Accessory Definitions [[accessory]]
+
+In addition to defining a byte sequence, `file` statements (but not expressions) may define compile-time constants in the byte block's namespace.
+These constants will have names prefixed by the previous label and the character `_`, if such a label exists.
+
+Example:
+----
+[] compressed_data
+    file(pbz, "sprites.png") 
+    label bg
+    file(pbz, "bg.png") 
+----
+
+In the example above, the <<file_pbz, `pbz` target>> is used.
+This target has two accessory definitions: `chunks` and `tiles`.
+Thus, `compressed_data` would gain the following members:
+
+- `compressed_data.chunks`
+- `compressed_data.tiles`
+- `compressed_data.bg_chunks`
+- `compressed_data.bg_tiles`
+
+Note that the first two refer to the first `file`, while the second two refer to the second `file`.
+The second two are prefixed with `bg_`, as the previous label is `bg`.
+
+
+==== Binary file formats [[file_bin]]
+
+The filetypes `.bin`, `.chr`, and `.nam` are loaded as raw binary data, with no conversions happening.
+
+==== `.txt` format [[file_txt]]
+
+The filetype `.txt` is interpreted as ASCII data, with newline sequences replaced with a single newline character.
+
+The following newline sequences are replaced with `\n`:
+
+- `\r`
+- `\r\n`
+- `\n\r`
+
+Where `\r` has an ASCII value of `$0D`, and `\n` has an ASCII value of `$0A`.
+
+==== `.map` format [[file_nam]]
+
+The filetype `.map`, originating from the https://frankengraphics.itch.io/nexxt[NEXXT] tool, describes tile maps.
+When imported into NESFab, the data is interpretted as a series of nametables, one after another.
+Note that this interpretation requires that the tile map have dimensions evenly divisible by 32x30.
+
+==== `.png` format [[file_png]]
+
+The filetype `.png` is interpreted as a https://en.wikipedia.org/wiki/PNG[PNG image] representing CHR tileset data.
+The input image must have dimensions that are multiples of 8 x 8 pixels.
+
+If the PNG image is encoded using a palette, the resulting CHR will use the palette indexes as each pixel's color, modulo 4.
+Otherwise, the PNG will be converted to a grayscale image with pixel values in the range [0, 3]; 
+black represents color 0 and white represents color 3.
+
+==== `raw` target [[file_raw]]
+
+The `raw` target imports raw binary data, without performing any filetype conversions.
+It accepts no arguments.
+
+Example:
+----
+[] sin_table
+    file(raw, "sin_table.bin") 
+----
+
+*Accessory Definitions*
+
+There are no accessory definitions for `raw`.
+
+==== `fmt` target [[file_fmt]]
+
+The `fmt` target imports data after first processing it using filetype conversions.
+It accepts no arguments.
+
+Example:
+----
+chrrom
+    file(fmt, "tiles.png") 
+----
+
+*Accessory Definitions*
+
+There are no accessory definitions for `fmt`.
+
+==== `pbz` target [[file_pbz]]
+
+The `pbz` target compresses the data into the PBZ encoding after first processing it using filetype conversions.
+It accepts no arguments.
+
+Example:
+----
+[] compressed_data
+    file(pbz, "sprites.png") 
+----
+
+*Accessory Definitions*
+
+- `chunks`: An `Int` equal to the decompressed size divided by 8.
+- `tiles`: An `Int` equal to the decompressed size divided by 16. If the size is not a multiple of 16, the value is left undefined.
+
+*Decompressing*
+
+The standard library file `pbz.fab` can be used to decompress PBZ-encoded data.
+
+*Encoding Description*
+
+PBZ is a simple run-length encoding that is good for representing graphical data.
+As it decompresses into chunks of 8 bytes, it won't work with arbitrarily-sized data.
+
+The data is formatted as a sequence of compressed 8-byte chunks.
+The first byte of a chunk encodes it run-length encoding in a unary-encoded format.
+For each bit of this byte, starting from the highest bit:
+
+-  `0` bit: Read a byte from the sequence and output it.
+-  `1` bit: Output the previous byte outputted for this chunk, or `$00` if none was.
+
+For example, given the sequence:
+
+----
+$AF $11 $22
+----
+
+The unary-encoded byte is `$AF`, which has the binary representation `%10101111`.
+Starting from the highest bit and working to the lowest bit, the decompressed sequence is:
+
+----
+$00 $11 $11 $22 $22 $22 $22 $22
+----
+
+==== `donut` target [[file_donut]]
+
+The `donut` target compresses the data into the Donut encoding after first processing it using filetype conversions.
+It accepts no arguments.
+
+Example:
+----
+[] compressed_data
+    file(donut, "sprites.png") 
+----
+
+*Accessory Definitions*
+
+- `chunks`: An `Int` equal to the decompressed size divided by 64.
+
+*Decompressing*
+
+The standard library file `donut.fab` can be used to decompress Donut-encoded data.
+
+==== `rlz` target [[file_rlz]]
+
+The `rlz` target compresses the data into the RLZ encoding after first processing it using filetype conversions.
+
+*Arguments*
+
+- 1st (optional): Include terminator. If `true`, the byte sequence will have a `$00` byte appended onto the end. 
+  If `false`, no `$00` will be appended. By default, the value is `true`.
+
+Example:
+----
+[] compressed_data
+    file(rlz, "sprites.png", false)
+    file(rlz, "sprites2.png")
+----
+
+*Accessory Definitions*
+
+There are no accessory definitions for `rlz`.
+
+*Decompressing*
+
+The standard library file `rlz.fab` can be used to decompress RLZ-encoded data.
+
+*Encoding Description*
+
+RLZ is a simple run-length encoding that's good for data with long sequences of repeating bytes.
+
+The data is formatted as a sequence of runs, where the first byte, N, of a run determines the effect.
+
+-  `$00` byte: Terminate the data sequence.
+-  `$01` to `$7F` byte: Copy the next byte, (N + 2) times.
+-  `$80` to `$FF` byte: Copy the next (N - 127) bytes verbatim.
+
+For example, given the sequence:
+
+----
+$03 $11 $81 $22 $33 $02 $44 $00
+----
+
+The decompressed sequence is:
+
+----
+$01 $01 $01 $01 $01 $22 $33 $44 $44 $44 $44
+----
+
+=== `macro` [[kw_macro]]
+
+The `macro` keyword generates and compiles a new source file by substituting its arguments into an existing `.macrofab` file.
+It is only usable at top-level scope.
+
+Syntax:
+----
+macro("macro_name", "args"...)
+----
+- `"macro_name"` is the string literal name of the macro file being invoked, without the `.macrofile` extension or path. If the string is empty, no macro is invoked.
+- `"args"` are a comma-separated list of string literals to be substituted into the `.macrofab` file.
+
+*Macro Files:*
+
+Macro (`.macrofab`) files resemble regular `.fab` files, but have additional syntax:
+
+- `\#:identifier:#` declares a macro parameter. The order of these declarations determines the argument order for the `macro` keyword.
+- `\#identifier#` expands a macro argument. 
+- `\#'identifier'#` expands a macro argument, putting it inside `'` quotes and escaping its characters. 
+- `\#"identifier"#` expands a macro argument, putting it inside `"` quotes and escaping its characters. 
+- `pass:[#`test`#]` expands a macro argument, putting it inside `pass:[`]` quotes and escaping its characters. 
+- `\#-identifier-#` expands a macro argument, converting underscores to camel-case.
+- `\#=identifier=#` expands a macro argument, converting underscores to snake-case.
+
+Note that macro arguments are not parsed inside comments or string literals.
+
+*Example*:
+----
+// Declare the parameters first:
+#:my_arg:#
+#:another_arg:#
+
+// Now expand them:
+vars
+    U #my_arg# = #another_arg#
+----
+
+If this is saved as `foo.macrofab`, the macro can be invoked in a `.fab` file like so:
+----
+macro("foo", "something", "100")
+----
+
+Which would generate the following source file and compile it:
+----
+// Declare the parameters first:
+
+
+
+// Now expand them:
+vars
+    U something = 100
+----
+
+[NOTE]
+The generated file is not saved to disk. It is compiled, and then forgotten.
+
+
+*Modifiers:*
+
+- <<mod_flags, `+fork_scope`>>
+
+=== `mapfab` [[kw_mapfab]]
+
+The `mapfab` keyword parses a `.mapfab` file and invokes a series of <<kw_macro, macros>> based on the data.
+It is only usable at top-level scope.
+
+[NOTE]
+http://pubby.games/mapfab.html[MapFab] is a level editor designed to be used with NESFab.
+
+Syntax:
+----
+mapfab(target, "mapfab_file", "chr_macro", "palette_macro", "metatiles_macro", "level_macro")
+----
+- `target` specifies the output target to use for the level tiles.
+- `"mapfab_file"` is the string literal path to the `.mapfab` or `.json` file.
+- `"chr_macro"` is the name of the macro to invoke for each CHR definition.
+- `"palette_macro"` is the name of the macro to invoke for each palette definition.
+- `"metatiles_macro"` is the name of the macro to invoke for each metatile set definition.
+- `"level_macro"` is the name of the macro to invoke for each level definition.
+
+If any of the macro names are the empty string (`""`), those macros are not invoked.
+
+*CHR Macro:*
+
+The following macro arguments are supplied for each CHR definition:
+----
+#:name:#   // The name of the CHR definition
+#:path:#   // The path to the CHR definition
+----
+
+Additionally, the following private definitions are defined:
+
+----
+ct Int _index   // The unique index of the CHR definition.
+----
+
+[NOTE]
+It can make sense to ignore `path`, and instead use `name` to derive the desired path.
+
+*Palette Macro:*
+
+The following macro arguments are supplied for each palette definition:
+----
+#:name:# // The name of the palette definition, which is an integer from 0 to 255.
+----
+
+Additionally, the following private definitions are defined:
+
+----
+ct Int _index       // The unique index of the palette definition.
+ct U[25] _palette   // The palette's data.
+----
+
+*Metatiles Macro:*
+
+The following macro arguments are supplied for each metatile set definition:
+----
+#:name:#         // The name of the metatile definition.
+#:chr_name:#     // The name of the CHR definition the metatile set uses for display.
+#:palette_name:# // The name of the palette definition the metatile set uses for display.
+----
+
+[NOTE]
+Typically, `chr_name` and `palette_name` should be ignored for metatile sets,
+as level macros have this information too.
+
+Additionally, the following private definitions are defined:
+
+----
+ct Int _index       // The unique index of the metatile set definition.
+ct Int _num         // The number of metatiles in the set.
+ct U[_num] _nw      // The north-west tiles of each metatile.
+ct U[_num] _ne      // The north-east tiles of each metatile.
+ct U[_num] _sw      // The south-west tiles of each metatile.
+ct U[_num] _se      // The south-east tiles of each metatile.
+ct U[_num] _attributes // The 2-bit attribute data of each metatile.
+ct U[_num] _collisions // The 6-bit collision data of each metatile.
+ct U[_num] _combined     // The two arrays above combined: attribute | (collision << 2)
+ct U[_num] _combined_alt // The two arrays above combined: (attribute << 6) | collision
+----
+
+If the target is <<mapfab_mmt_32, `mmt_32`>>, the following definitions are also defined:
+
+----
+ct Int _mmt_num            // The number of metametatiles in the set.
+ct U[_num] _mmt_nw         // The north-west metatiles of each metametatile.
+ct U[_num] _mmt_ne         // The north-east metatiles of each metametatile.
+ct U[_num] _mmt_sw         // The south-west metatiles of each metametatile.
+ct U[_num] _mmt_se         // The south-east metatiles of each metametatile.
+ct U[_num] _mmt_attributes // The combined 8-bit attribute data of each metametatile.
+----
+
+*Levels Macro:*
+
+The following macro arguments are supplied for each level set definition:
+----
+#:name:#           // The name of the level definition.
+#:chr_name:#       // The name of the CHR definition the metatile set uses for display.
+#:palette_name:#   // The name of the palette definition the metatile set uses for display.
+#:metatiles_name:# // The name of the metatile set definition the metatile set uses for display.
+#:macro_name:#     // Contents of MapFab's macro field.
+----
+
+Additionally, the following private definitions are defined:
+
+----
+ct Int _index       // The unique index of the level definition.
+ct Int _width       // The width of the level, in tiles.
+ct Int _height      // The height of the level, in tiles.
+ct U[_width * _height] _row_major    // The level's contents in a row-major order.
+ct U[_width * _height] _column_major // The level's contents in a column-major order.
+----
+
+For each object class (`CLASS`), the following <<type_vec, VECs>> are defined:
+
+----
+ct Int{} _CLASS_x 
+ct Int{} _CLASS_y 
+----
+
+For each field (`FIELD`) in `CLASS`, additional VECs are defined, with the string of each field wrapped inside a cast.
+----
+ct TYPE{} _CLASS_FIELD  
+----
+
+For example, if the class `foo` had three objects in this level,
+and each object had a field `U bar`, the following definitions would exist:
+
+----
+ct Int{} _foo_x = Int{}(203, -3, 3099)
+ct Int{} _foo_y = Int{}(13, 991, -30)
+ct U{} _foo_bar = U{}(U(0), U(5), U(2))
+----
+
+[NOTE]
+Objects are ordered based on their names.
+
+For each named object, addition Ints are defined. Each Int holds the object's index in its object array:
+----
+ct Int _CLASS_name_NAME = ID
+----
+
+For example, if an object was named `foo` and belonged to object class `bar` with index 2, the following Int would be defined:
+----
+ct Int _bar_name_foo = 2
+----
+
+*Output Target Conversions*
+
+The data of each level (`_row_major` and `_column_major`) are converted based on specified target:
+
+[cols="1,3"]
+|===
+|Conversion Target |Description
+
+| <<file_raw, `raw`>>
+| No conversion
+
+| <<file_pbz, `pbz`>>
+| Compress using PBZ compression
+
+| <<file_rlz, `rlz`>>
+| Compress using RLZ compression (no terminator)
+
+| <<mapfab_mmt_32, `mmt_32`>>
+| Compress using 32x32 pixel metametatiles.
+
+|===
+
+*Modifiers:*
+
+- <<mod_flags, `+fork_scope`>>
+
+==== `mmt_32` target [[mapfab_mmt_32]]
+
+The `mmt_32` target generates 32x32 pixel metametatiles, where each metametatile is comprised of four 16x16 metatiles.
+These metametatiles are not user-defined. Instead, they are computed automatically by scanning the level data.
+
+[NOTE]
+An error will occur if more than 256 metametatiles are found.
+
+See `examples/meta_meta_tiles` for code which decompresses this.
+
+=== `audio` [[kw_audio]]
+
+The `audio` keyword imports and converts audio data from an external file,
+converting the data into code definitions.
+It is only usable at top-level scope.
+
+Syntax:
+----
+audio(target, args...)
+----
+
+- `target` specifies the output target to use.
+- `args...` is a comma-separated list of arguments that the conversion script will use.
+
+Example:
+----
+audio(puf1_music, "music.txt") 
+----
+
+*Output Targets*
+
+The following targets are accepted:
+
+[cols="1,1,2"]
+|===
+|Conversion Target |Description
+
+| <<audio_puf1_music, `puf1_music`>>
+| Music
+
+| <<audio_puf1_sfx, `puf1_sfx`>>
+| Sound Effects
+
+|===
+
+==== `puf1_music` target [[audio_puf1_music]]
+
+The `puf1_music` target converts music data and generates code compatible with the PUF music engine.
+
+Example:
+----
+audio(puf1_music, "music.txt") 
+----
+
+*Arguments*
+
+- 1st (optional): Filename as a string literal.  
+  The file should be a `.txt` file exported by http://famitracker.com/[FamiTracker].
+  If this argument is left out, definitions will still be generated, albeit with zero tracks.
+
+*Definitions*
+
+Every generated definition will be prefixed with `puf_`, and will have `/puf_data` or `/puf_omni` as its group.
+
+Because tracks are indexed by number, `puf1_music` enumerates each track with a compile-time constant definition.
+The names of these definitions are prefixed with `puf_track_`, followed by the track's name converted to lowercase,
+with `_` characters replacing spaces and other special characters.
+
+For example, if the tracks are:
+----
+Main Menu
+Game Play 1
+Death
+----
+
+The following definitions would be defined by `puf1_music`:
+----
+ct U puf_track_main_menu   = 0
+ct U puf_track_game_play_1 = 1
+ct U puf_track_death       = 2
+----
+
+*Use*
+
+The standard library file `puf1.fab` can be used to play the converted music.
+A description of how to compose compatible music can be found in that file.
+
+[NOTE]
+You will also need a `puf1_sfx` audio target.
+
+==== `puf1_sfx` target [[audio_puf1_sfx]]
+
+The `puf1_sfx` target converts sound effect data and generates code compatible with the PUF music engine.
+
+Example:
+----
+audio(puf1_sfx, "music.txt", "music.nsf") 
+----
+
+*Arguments*
+
+- 1st (optional): Filename as a string literal.  
+  The file should be a `.txt` file exported by http://famitracker.com/[FamiTracker].
+  If this argument is left out, definitions will still be generated, albeit with zero sound effects.
+
+- 2nd (optional): Filename as a string literal.  
+  The file should be a `.nsf` file exported by http://famitracker.com/[FamiTracker],
+  from the same project as the `.txt`.
+  If both arguments are left out, definitions will still be generated, albeit with zero sound effects.
+
+*Definitions*
+
+Every generated definition will be prefixed with `puf_`, and will have `/puf_data` or `/puf_omni` as its group.
+
+Because sound effects are indexed by number, `puf1_sfx` enumerates each track with a compile-time constant definition.
+The names of these definitions are prefixed with `puf_sfx_`, followed by the sound effect track's name converted to lowercase,
+with `_` characters replacing spaces and other special characters.
+
+For example, if the sound effect tracks are:
+----
+Attack
+Double Jump
+Death
+----
+
+The following definitions would be defined by `puf1_sfx`:
+----
+ct U puf_sfx_attack      = 0
+ct U puf_sfx_double_jump = 1
+ct U puf_sfx_death       = 2
+----
+
+*Use*
+
+The standard library file `puf1.fab` can be used to play the converted sound effects.
+A description of how to compose compatible sound effects can be found in that file.
+
+[NOTE]
+You will also need a `puf1_music` audio target.
+
+=== `stows` [[kw_stows]]
+
+See <<mod_stows>>.
+
+=== `employs` [[kw_employs]]
+
+See <<mod_employs>>.
+
+=== Implementation Keywords
+
+Keywords prefixed with two underscores (`__`) provide access to specific niches of the compiler,
+and are primarily intended for use in the standard library, not by users.
+
+==== `__controllers` [[kw_controllers]]
+
+`__controllers` is a value of type `Int` which returns the value set by the <<opt_controllers, `--controllers` option>>.
+
+==== `__sector_size` [[kw_sector_size]]
+
+`__sector_size` is a value of type `Int` which returns the value set by the <<opt_sector_size, `--sector-size` option>>.
+
+==== `__expansion_audio` [[kw_expansion_audio]]
+
+`__expansion_audio` is a value of type `Int`, determined by the <<opt_expansion_audio, `--expansion-audio` option>>
+and the <<opt_mapper, `--mapper` option>>.
+
+Its possible values are below:
+
+[cols="1,3"]
+|===
+|Value |Meaning
+
+|0
+|No expansion audio
+
+|1
+|MMC5 audio enabled
+
+|2
+|VRC6 audio enabled
+|===
+
+==== `__mapper` [[kw_mapper]]
+
+`__mapper` is a value of type `Int` which returns the INES mapper number set by the <<opt_mapper, `--mapper` option>>.
+
+==== `__illegal` [[kw_illegal]]
+
+`__illegal` is a value of type `Bool` which returns true when the compiler supports the generation of <<illegal_ops, illegal instructions>>.
+
+==== `__mapper_state` [[kw_mapper_state]]
+
+`__mapper_detail` is a value used by specific mappers (such as MMC1) to workaround interrupts that occur during bank switches. 
+It is not recommended to use this keyword.
+
+==== `__mapper_reset` [[kw_mapper_reset]]
+
+`__mapper_reset` is a function used by specific mappers (such as MMC1) to reset their state. 
+It is not recommended to use this keyword.
+
+==== `__fixed` [[kw_fixed]]
+
+`__fixed` is a value of type `Bool` which returns if the mapper uses a fixed bank.
+
+==== `__multiply` [[kw_multiply]]
+
+`__multiply` is a value of type `Void` representing NESFab's multiply subroutine.
+Referencing the value using <<unary_ops, unary operator>> `&` returns an address of type `AA`,
+pointing to the subroutine.
+
+This subroutine expects two 8-bit multiplicands in registers A and Y.
+It returns the result of the multiplication with the low byte in A and the high byte in Y.
+
+Example:
+----
+    lda #3
+    ldy #10
+    jsr &__multiply
+    // Result in A and Y
+----
+
+== Modifiers [[modifiers]]
+
+Modifiers add additional metadata to definitions.
+
+Example:
+----
+fn foo(U x) U
+: employs /bar
+: +align
+    return x + x
+----
+
+=== Modifier Flags [[mod_flags]]
+
+Modifier flags are specified prefixed with a `-` or `pass:c[+]` character.
+`-` is used to disable the modifier, while `pass:c[+]` is used to enable it.
+
+The following flags exist for definitions:
+
+- `+inline`, `-inline`: Force / prevent the function from being inlined.
+- `+align`: Aligns the data to fit inside a 256-byte page (or to 256 bytes otherwise).
+- `+zero_page`, `-zero_page`: Force / prevent variables from using fast zero-page RAM.
+- `+sram`, `-sram`: Force / prevent variables from using SRAM (see <<opt_sram>>).
+- `+spr_8x16`: Reorders <<kw_file>> CHR data from 8x16 tiles to 8x8 tiles.
+- `+graphviz`: Output the function's intermediate representation in a graphviz file.
+- `+info`: Output the function's intermediate representation in a text file.
+- `+dpcm`: Align and store the data in a ROM location suitable for DPCM.
+- `+sector`: Align and store the data in a ROM location aligned to the ROM chip's sectors (for flash saving, etc).
+- `+static`: Allocate the function or data in every bank (or force them into the fixed bank, for mappers with one). 
+             This modifier is incompatible with <<kw_asm, `asm`>> functions that return in a different bank than they started in.
+             You must validate this yourself.
+- `+static_fixed`: The same as `+static`, but only applies to mappers that have a fixed bank, like UNROM.
+- `+palette_3`: Converts 4-byte palettes into 3-byte palettes.
+- `+palette_25`: Converts 32-byte palettes into 25-byte palettes.
+- `+sloppy`, `-sloppy`: Enables / disables faster compilation speed, at the cost of performance.
+- `+fork_scope`: The invoked macro(s) will have access to private definitions inside the invoking file.
+- `+solo_interrupt`: Disable switchable interrupts and always use this interrupt.
+- `+unused`: Do not warn if the definition is unused.
+
+Example:
+----
+fn foo(U x) U
+: -inline
+: +align
+: +graphviz
+    return x + x
+----
+
+=== Field Modifier Flags [[mod_flags_fields]]
+
+Modifier flags are specified prefixed with a `-` or `pass:c[+]` character.
+`-` is used to disable the modifier, while `pass:c[+]` is used to enable it.
+
+The following flags exist for struct fields:
+
+- `+inherit`: The struct will implicitly cast to the field's type. The field of the field can be accessed directly.
+
+=== Loop Modifier Flags [[mod_flags_loop]]
+
+Modifier flags are specified prefixed with a `-` or `pass:c[+]` character.
+`-` is used to disable the modifier, while `pass:c[+]` is used to enable it.
+
+The following flags exist for loop statements:
+
+- `-unroll`, `+unroll`: Hint to prevent/enable loop unrolling.
+- `+unloop`: Hint to unroll a loop completely, replacing the loop.
+
+Example:
+----
+for U i = 0; i < 10; i += 10
+: -unroll
+    {PPUDATA}(i)
+----
+
+
+=== `nmi` [[mod_nmi]]
+
+The `nmi` <<modifiers, modifier>> is used inside a <<kw_mode,`mode`>> declaration to specify the mode's NMI handler.
+
+Syntax:
+----
+: nmi nmi_handler
+----
+- `nmi_handler` is a <<kw_nmi_function>> handler to be used while this mode is executing.
+
+The `nmi` modifier is optional. Modes without one will use an NMI handler that immediately returns from the interrupt.
+
+Example:
+----
+nmi my_nmi()
+    {PPUMASK}(PPUMASK_ON)
+
+mode foo()
+: nmi my_nmi
+    // ... 
+----
+
+=== `irq` [[mod_irq]]
+
+The `irq` <<modifiers, modifier>> is used inside a <<kw_mode,`mode`>> declaration to specify the mode's IRQ handler.
+
+Syntax:
+----
+: irq irq_handler
+----
+- `irq_handler` is an <<kw_irq_function>> handler to be used while this mode is executing.
+
+The `irq` modifier is optional. Modes without one will use an IRQ handler that immediately returns from the interrupt.
+
+Example:
+----
+irq my_irq()
+    {PPUMASK}(PPUMASK_ON)
+
+mode foo()
+: irq my_irq
+    // ... 
+----
+
+=== `stows` [[mod_stows]]
+
+The `stows` <<modifiers, modifier>> is used inside <<kw_charmap>> definitions
+to enable string literals to use said `charmap`.
+
+Syntax:
+----
+: stows /group_name
+----
+
+- `/group_name` is a single `data` group which string literals will be stored in.
+
+==== `stows omni`
+
+The `stows omni` modifier behaves like `stows`, except it stores its data inside an `omni data` group.
+
+Syntax:
+----
+: stows omni /group_name
+----
+
+- `/group_name` is a single `omni data` group which string literals will be stored in.
+
+=== `employs` [[mod_employs]]
+
+The `employs` <<modifiers, modifier>> instructs a function to be dependent on a group.
+From the time the function is called to the time the function returns,
+the memory associated with that group will be usable by the function.
+
+Normally, the compiler automatically infers the groups a function depends on.
+The `employs` modifier is only required in these circumstances:
+
+- A value is read or written using a hardware address (type `AA` or `AAA`).
+- The modified function is an <<kw_asm, `asm fn`>>.
+
+Syntax:
+----
+: employs /group_names
+----
+
+- `/group_names` is an optional list of groups.
+
+==== `employs vars` and `employs data`
+
+For additional control, `employs vars` and/or `employs data` modifiers can be used.
+These behave like `employs`, but only include the `vars` and/or `data` definitions of each groups.
+
+Syntax:
+----
+: employs vars /group_names
+: employs data /group_names
+----
+
+- `/group_names` is an optional list of groups.
+
+=== `preserves` [[mod_preserves]]
+
+The `preserves` <<modifiers, modifier>> is used inside a <<kw_goto_mode_statement>>
+to specify which variables are kept, and which are reset to their initial value.
+
+Syntax:
+----
+: preserves /group_names
+----
+
+- `/group_names` is an optional list of `vars` groups.
+
+If a global variable is not in a preserved group, it will be reset to its initial value if one exists.
+If no initial value was specified, the value will enter an undefined (garbage) state.
+
+=== `data` [[mod_data]]
+
+The `data` <<modifiers, modifier>> is used to document which `data` <<groups, groups>> a function uses.
+
+Syntax:
+----
+: data /group_names
+----
+
+- `/group_names` is an optional list of `data` groups.
+
+The function will be checked by the compiler to ensure it only uses data from the listed groups.
+
+=== `vars` [[mod_vars]]
+
+The `vars` <<modifiers, modifier>> is used to document which `vars` <<groups, groups>> a function uses.
+
+Syntax:
+----
+: vars /group_names
+----
+
+- `/group_names` is an optional list of `data` groups.
+
+The function will be checked by the compiler to ensure it only uses variables from the listed groups.
+
+== Operators
+
+=== Operator Tables
+
+==== Unary Operators [[unary_ops]]
+
+[NOTE]
+Operators with lower precedence numbers come earlier in the order of operations.
+
+[cols="1,1,4"]
+|===
+|Operator |Precedence |Description
+
+| `@`
+| 4
+| <<get_pointer>>
+
+| `&`
+| 8
+| <<get_hw_addr>>
+
+| `pass:c[+]`
+| 8
+| <<unary_plus>>
+
+| `-`
+| 8
+| <<unary_negate>>
+
+| `~`
+| 8
+| <<unary_bitwise_not>>
+
+| `!`
+| 8
+| <<unary_logical_not>>
+
+|===
+
+
+==== Binary Operators [[binop]]
+
+[NOTE]
+Operators with lower precedence numbers come earlier in the order of operations.
+
+[cols="1,1,1,3"]
+|===
+|Operator |Precedence |Associativity |Description
+
+| `.`
+| 5
+| Left
+| <<member_access>>
+
+| `*`
+| 10
+| Left
+| <<multiply>>
+
+| `pass:c[+]`
+| 11
+| Left
+| <<add>>
+
+| `-`
+| 11
+| Left
+| <<subtract>>
+
+| `+<-<+`
+| 12
+| Left
+| <<rotate_left>>
+
+| `+>->+`
+| 13
+| Right
+| <<rotate_right>>
+
+| `+<<+`
+| 14
+| Left
+| <<shift_left>>
+
+| `+>>+`
+| 14
+| Left
+| <<shift_right>>
+
+| `+&+`
+| 15
+| Left
+| <<bitwise_and>>
+
+| `+^+`
+| 16
+| Left
+| <<bitwise_xor>>
+
+| `+\|+`
+| 17
+| Left
+| <<bitwise_or>>
+
+| `+<+`
+| 18
+| Left
+| <<less_than>>
+
+| `+<=+`
+| 18
+| Left
+| <<less_than_or_equal_to>>
+
+| `+>+`
+| 18
+| Left
+| <<greater_than>>
+
+| `+>=+`
+| 18
+| Left
+| <<greater_than_or_equal_to>>
+
+| `+==+`
+| 19
+| Left
+| <<equal_to>>
+
+| `+!=+`
+| 19
+| Left
+| <<not_equal_to>>
+
+| `+&&+`
+| 20
+| Left
+| <<logical_and>>
+
+| `+\|\|+`
+| 21
+| Left
+| <<logical_or>>
+
+| `+<=<+`
+| 28
+| Right
+| <<assign_rotate_left>>
+
+| `+>=>+`
+| 29
+| Left
+| <<assign_rotate_right>>
+
+| `*=`
+| 30
+| Right
+| <<assign_multiply>>
+
+| `+=`
+| 30
+| Right
+| <<assign_add>>
+
+| `-=`
+| 30
+| Right
+| <<assign_subtract>>
+
+| `+<<=+`
+| 30
+| Right
+| <<assign_shift_left>>
+
+| `+>>=+`
+| 30
+| Right
+| <<assign_shift_right>>
+
+| `&=`
+| 30
+| Right
+| <<assign_bitwise_and>>
+
+| `^=`
+| 30
+| Right
+| <<assign_bitwise_xor>>
+
+| `\|=`
+| 30
+| Right
+| <<assign_bitwise_or>>
+
+| `=`
+| 30
+| Right
+| <<assign>>
+
+|===
+
+==== Function-like Operators [[fnop]]
+
+[NOTE]
+All function-like operators have left associativity and evaluate first in the order of operations.
+
+[cols="3,3"]
+|===
+|Operator |Description
+
+| `_fn_expression_(_argument_expressions_...)`
+| <<fn_call, Function Call>>
+
+| `_Type_(_argument_expressions_...)`
+| <<casts, Explicit Type Cast>>
+
+| `sizeof _Type_`
+| <<sizeof_type, Size of a Type>>
+
+| `sizeof(_expression_)`
+| <<sizeof_expr, Size of an Expression>>
+
+| `len _Type_`
+| <<len_type, Array Length of a Type>>
+
+| `len(_expression_)`
+| <<len_expr, Array Length of an Expression>>
+
+| `abs(_expression_)`
+| <<abs_expr, Absolute Value>>
+
+| `min(_expression_)`
+| <<min_expr, Minimum>>
+
+| `max(_expression_)`
+| <<max_expr, Maximum>>
+
+| `_array_expression_[_index_expression_]`
+| <<array_access_u, U-Indexed Array/Pointer Access>>
+
+| `_array_expression_{_index_expression_}`
+| <<array_access_uu, UU-Indexed Array/Pointer Access>>
+
+| `{_address_expression_}()`
+| <<hw_read, Hardware Read>>>>
+
+| `{_address_expression_}(_value_expression_)`
+| <<hw_write, Hardware Write>>
+
+|===
+
+=== Operator Listings
+
+==== Get Pointer `@` [[get_pointer]]
+
+Converts an lvalue <<type_paa, pointer-addressable array>> into a corresponding pointer.
+
+==== Get Hardware Address `&` [[get_hw_addr]]
+
+Converts an lvalue into its corresponding hardware address, of type `AA` or `AAA`.
+
+This operator is intended to be used with inline assembly code. 
+Although this operator by itself is safe, dereferencing the addresses it returns can easily cause undefined behavior.
+For regular code, it's recommended to use <<get_pointer>> instead.
+
+==== Unary Plus `pass:c[+]` [[unary_plus]]
+
+Returns its operand, type and value unchanged. The operand must be an <<type_arithmetic, arithmetic type>>.
+
+Example:
+----
++100 // Equivalent to 100
+----
+
+==== Unary Negate `-` [[unary_negate]]
+
+Returns its operand subtracted from zero, type unchanged. The operand must be an <<type_arithmetic, arithmetic type>>.
+
+Example:
+----
+-100 // Equivalent to (0 - 100)
+----
+
+==== Unary Bitwise NOT `~` [[unary_bitwise_not]]
+
+Returns its operand with every bit flipped (1 becomes 0, and vice versa), type unchanged. The operand must be an <<type_arithmetic, arithmetic type>>.
+
+Example:
+----
+U bits = %1010
+~bits // Equivalent to %11110101
+----
+
+==== Unary Logical NOT `!` [[unary_logical_not]]
+
+Returns its operand, converted to type `Bool`, then negated (`true` becomes `false` and vice versa). The operand must be an <<type_arithmetic, arithmetic type>>.
+
+Example:
+----
+!0     // Equivalent to true
+!5     // Equivalent to false
+!true  // Equivalent to false
+!false // Equivalent to true
+----
+
+==== Member Access `.` [[member_access]]
+
+Operator `.` is used to access members and nested values, and works similarly to other languages.
+Its behavior depends on the left hand side of the operator:
+
+- For <<type_struct, structure values>>, returns the specified member as an lvalue.
+- For <<type_scalar, scalar values>>, returns the specified byte or pointer member as an lvalue.
+- For <<kw_fn, `fn` values>> and <<type_paa, PAA values>>, returns the <<kw_ct, `ct`>> value in its scope.
+
+Additionally, if the left hand side is an <<kw_asm, `asm fn`>> and the right hand side is a <<kw_label_asm, `label`>>,
+the result is a callable function with the label being the entry point.
+
+Example:
+----
+foo.bar = 10               // Modify a struct member
+some_uu.a = 10             // Modify a byte
+some_asm_fn.some_label(10) // Call an assembly function
+----
+
+*Scalar value members:*
+
+Scalars of types such as `UU`, `SSSF`, or `CCC` have the following members defined for them, when applicable:
+
+[cols="1,1,1"]
+|===
+|Member |Defined For |Byte
+
+| `.a`
+| Scalars
+| 1st (lowest) whole byte
+
+| `.b`
+| Scalars
+| 2nd whole byte
+
+| `.c`
+| Scalars
+| 3d whole byte
+
+| `.z`
+| Scalars
+| 1st (highest) fractional byte
+
+| `.y`
+| Scalars
+| 2nd fractional byte
+
+| `.x`
+| Scalars
+| 3rd fractional byte
+
+| `.bank`
+| Only Pointers
+| Bank byte
+
+| `.ptr`
+| Only Pointers
+| Non-banked pointer
+
+|===
+
+These members can be read or set using operator `.` like struct members can.
+
+Example:
+
+----
+UUU foo = $123456
+foo.a = 0   // Set the low byte.    foo is now $123400
+foo.b = 0   // Set the middle byte. foo is now $120000
+foo.c = 0   // Set the high byte.   foo is now $000000
+----
+
+==== Multiply `*` [[multiply]]
+
+Returns its operands multiplied together, of a type large enough to hold the product. 
+The return type is signed if either operand is signed, but unsigned otherwise.
+The operands must be <<type_quantity, quantity types>>.
+
+To be more precise, if the operand types have `F` and `F'` fractional bytes, the return type will have `F + F'`.
+Likewise, if the operand types have `W` and `W'` whole bytes, the return type will have `W + W'`.
+The return type will be truncated to fit the compiler's available types.
+
+Example:
+----
+5 * 3             // Equivalent to 15, of type Int
+U(5) * U(8)       // Equivalent to 40, of type UU
+UF(5.5) * SS(-10) // Equivalent to -55, of type SSSF
+----
+
+[NOTE]
+Multiplying two variables together is a very slow operation,
+but multiplying a variable by a constant is faster since the compiler can convert the expression to a sequence of shifts and adds.
+However, if you need to do lots of multiplications, consider using lookup tables instead.
+
+==== Assign by Multiply (`*=`) [[assign_multiply]]
+
+Multiplies its operands together, then assigns the value to the lvalue left operand, converting as needed. 
+Returns the left operand's new value.
+
+Example:
+----
+U a
+a *= b // Equivalent to a = U(a * b)
+----
+
+==== Add `pass:c[+]` [[add]]
+
+Returns the sum of its operands. 
+The operands must be of the same <<type_quantity, quantity type>>, although `Int` and `Real` will convert.
+
+Example:
+----
+3 + 7 // Equivalent to 10
+----
+
+==== Assign by Add `+=` [[assign_add]]
+
+Converts the right operand to the left operand's type, then performs an addition using both operands and assigns the value to the lvalue left operand.
+Return the carry: a value of type `Bool` that is `true` when the resulting sum overflowed, and `false` otherwise. 
+
+Example:
+----
+U x = 200
+x += 50  // 'x' is now equal to 50. The expression returns 'false'.
+x += 100 // 'x' is now equal to 94 due to overflow. The expression returns 'true'.
+----
+
+[NOTE]
+Unlike in other languages, this operator doesn't return its left operand.
+
+==== Subtract `-` [[subtract]]
+
+Returns the difference of its operands (the right operand subtracted from the left). 
+The operands must be of the same <<type_quantity, quantity type>>, although `Int` and `Real` will convert.
+
+Example:
+----
+10 - 7 // Equivalent to 3
+----
+
+==== Assign by Subtract `-=` [[assign_subtract]]
+
+Converts the right operand to the left operand's type, then performs a subtraction using both operands and assigns the value to the lvalue left operand.
+Return the carry: a value of type `Bool` that is `false` when the resulting sum underflowed, and `true` otherwise. 
+
+Example:
+----
+U x = 200
+x -= 50  // 'x' is now equal to 150. The expression returns 'true'.
+x -= 300 // 'x' is now equal to 106 due to underflow. The expression returns 'false'.
+----
+
+==== Rotate Left `+<-<+` [[rotate_left]]
+
+Moves each of the bits of the left operand one place to the left, with the lowest bit being filled with the value of the right operand.
+The left operand must be a <<type_quantity, type_quantity>>, and the right operand must be type `Bool`.
+The return type matches the left operand's type.
+
+Example:
+----
+U(%11001010) <-< false // Equivalent to U(%10010100)
+U(%11001010) <-< true  // Equivalent to U(%10010101)
+U(%01111111) <-< false // Equivalent to U(%11111110)
+----
+
+==== Assign by Rotate Left `+<=<+` [[assign_rotate_left]]
+
+Performs a left rotation using both operands, then assigns the value to the lvalue left operand.
+Returns the carry: a value of type `Bool` equal to left operand's highest bit prior to the operation.
+
+Example:
+----
+U foo = %11001010
+foo <=< false // Sets 'foo' to U(%10010100). Returns true.
+----
+
+==== Rotate Right `+>->+` [[rotate_right]]
+
+Moves each of the bits of the right operand one place to the right, with the highest bit being filled with the value of the left operand.
+The right operand must be a <<type_quantity, type_quantity>>, and the left operand must be type `Bool`.
+The return type matches the right operand's type.
+
+Example:
+----
+false >-> U(%11001010) // Equivalent to U(%01100101)
+true  >-> U(%11001010) // Equivalent to U(%11100101)
+false >-> U(%11111110) // Equivalent to U(%01111111)
+----
+
+[NOTE]
+This operation corresponds to the 6502 assembly instruction `ROR`.
+
+==== Assign by Rotate Right `+>=>+` [[assign_rotate_right]]
+
+Performs a right rotation using both operands, then assigns the value to the lvalue right operand.
+Returns the carry: a value of type `Bool` equal to right operand's lowest bit prior to the operation.
+
+Example:
+----
+U foo = %11001010
+false >=> foo // Sets 'foo' to %01100101. Returns false.
+----
+
+[NOTE]
+This operator requires an lvalue on the right side of the operator, which is unlike other assignment operators.
+
+==== Shift Left `<<` [[shift_left]]
+
+Moves each of the bits of the left operand to the left N places, where N is the right operand of type `U`, 
+and filling blank spaces with `0`.
+The return type matches the left operand's type.
+
+Example:
+----
+U(%11110001) << 1 // Equivalent to U(%11100010)
+U(%11110001) << 3 // Equivalent to U(%10001000)
+----
+
+See: https://en.wikipedia.org/wiki/Bitwise_operation[Wikipedia on Bitwise Operations]
+
+[NOTE]
+The NES performs shifts one bit at a time, meaning `x << 1` is five times faster than `x << 5`,
+and shifting by a variable (`x << y)` generates a loop in the assembly.
+
+==== Assign by Shift Left `+<<=+` [[assign_shift_left]]
+
+Performs a left shift using both operands, then assigns the value to the lvalue left operand.
+Returns the carry: a value of type `Bool` equal to last bit shifted out (or `false` if no shifting occurred).
+
+Example:
+----
+U foo = %11001010
+foo <<= 2 // Sets 'foo' to U(%00101000). Returns true.
+----
+
+[NOTE]
+Unlike in other languages, this operator doesn't return its left operand.
+
+==== Shift Right `>>` [[shift_right]]
+
+Moves each of the bits of the left operand to the right N places, where N is the right operand of type `U`.
+If the left operand is unsigned, the blank spaces are filled with `0`, 
+otherwise the blank spaces are filled with the highest bit of the left operand (this is called sign extension).
+The return type matches the left operand's type.
+
+Example:
+----
+U(%11110001) >> 1 // Equivalent to U(%01111000)
+S(%11110001) >> 1 // Equivalent to S(%11111000)
+U(%11110001) >> 3 // Equivalent to U(%00011110)
+S(%11110001) >> 3 // Equivalent to S(%11111110)
+S(%01110001) >> 3 // Equivalent to S(%00001110)
+----
+
+See: https://en.wikipedia.org/wiki/Bitwise_operation[Wikipedia on Bitwise Operations]
+
+[NOTE]
+The NES performs shifts one bit at a time, meaning `x >> 1` is five times faster than `x >> 5`,
+and shifting by a variable (`x >> y)` generates a loop in the assembly.
+
+==== Assign by Shift Right `+>>=+` [[assign_shift_right]]
+
+Performs a right shift using both operands, then assigns the value to the lvalue left operand.
+Returns the carry: a value of type `Bool` equal to last bit shifted out (or `false` if no shifting occurred).
+
+Example:
+----
+U foo = %11001010
+foo >>= 2 // Sets 'foo' to U(%00110010). Returns true.
+----
+
+[NOTE]
+Unlike in other languages, this operator doesn't return its left operand.
+
+==== Bitwise AND `&` [[bitwise_and]]
+
+Applies the AND operation across each bit of the operands, returning the result.
+The operands must be of the same <<type_arithmetic, arithmetic type>>, although `Int` and `Real` will convert.
+
+Example:
+----
+U(%11110000) & U(%10101010) // Equivalent to U(%10100000)
+----
+
+See: https://en.wikipedia.org/wiki/Bitwise_operation[Wikipedia on Bitwise Operations]
+
+==== Assign by Bitwise AND `&=` [[assign_bitwise_and]]
+
+Converts the right operand to the left operand's type, then performs a bitwise AND using both operands and assigns the value to the lvalue left operand.
+Returns the left operand's new value.
+
+Example:
+----
+U foo = %11110000
+foo &= %10101010 // Sets 'foo' to U(%10100000)
+----
+
+==== Bitwise XOR `^` [[bitwise_xor]]
+
+Applies the XOR operation across each bit of the operands, returning the result.
+The operands must be of the same <<type_arithmetic, arithmetic type>>, although `Int` and `Real` will convert.
+
+Example:
+----
+U(%11110000) ^ U(%10101010) // Equivalent to U(%01011010)
+----
+
+See: https://en.wikipedia.org/wiki/Bitwise_operation[Wikipedia on Bitwise Operations]
+
+==== Assign by Bitwise XOR `^=` [[assign_bitwise_xor]]
+
+Converts the right operand to the left operand's type, then performs a bitwise XOR using both operands and assigns the value to the lvalue left operand.
+Returns the left operand's new value.
+
+Example:
+----
+U foo = %11110000
+foo ^= %10101010 // Sets 'foo' to U(%01011010)
+----
+
+==== Bitwise OR `|` [[bitwise_or]]
+
+Applies the OR operation across each bit of the operands, returning the result.
+The operands must be of the same <<type_arithmetic, arithmetic type>>, although `Int` and `Real` will convert.
+
+Example:
+----
+U(%11110000) | U(%10101010) // Equivalent to U(%11111010)
+----
+
+See: https://en.wikipedia.org/wiki/Bitwise_operation[Wikipedia on Bitwise Operations]
+
+==== Assign by Bitwise OR `|=` [[assign_bitwise_or]]
+
+Converts the right operand to the left operand's type, then performs a bitwise OR using both operands and assigns the value to the lvalue left operand.
+Returns the left operand's new value.
+
+Example:
+----
+U foo = %11110000
+foo |= %10101010 // Sets 'foo' to U(%11111010)
+----
+
+==== Logical AND `&&` [[logical_and]]
+
+Implements the https://en.wikipedia.org/wiki/Short-circuit_evaluation["short-circuit"] version of the AND operation from boolean logic.
+
+Evaluates the left operand and converts it to `Bool`. If it is `false`, the operator returns `false`. 
+Otherwise, it evaluates the right operand and returns its value converted to `Bool`.
+
+Example:
+----
+false && false  // Returns false
+true  && false  // Returns false
+false && true   // Returns false
+true  && true   // Returns true
+----
+
+==== Logical OR `||` [[logical_or]]
+
+Implements the https://en.wikipedia.org/wiki/Short-circuit_evaluation["short-circuit"] version of the OR operation from boolean logic.
+
+Evaluates the left operand and converts it to `Bool`. If it is `true`, the operator returns `true`. 
+Otherwise, it evaluates the right operand and returns its value converted to `Bool`.
+
+Example:
+----
+false || false  // Returns false
+true  || false  // Returns true
+false || true   // Returns true
+true  || true   // Returns true
+----
+
+==== Less Than `<` [[less_than]]
+
+Compares the <<type_arithmetic, arithmetic type>> operands, returning `true` if the left operand is less than the right and `false` otherwise.
+The operands may be of different types. No types conversions occur besides `Int` and `Real` conversions.
+
+Example:
+----
+3 <  10 // Returns true
+3 < -10 // Returns false
+----
+
+==== Less Than or Equal To `+<=+` [[less_than_or_equal_to]]
+
+Compares the <<type_arithmetic, arithmetic type>> operands, returning `true` if the left operand is less than or equal to the right and `false` otherwise.
+The operands may be of different types. No types conversions occur besides `Int` and `Real` conversions.
+
+Example:
+----
+3 <= 3   // Returns true
+3 <= -10 // Returns false
+----
+
+==== Greater Than `>` [[greater_than]]
+
+Compares the <<type_arithmetic, arithmetic type>> operands, returning `true` if the left operand is greater than the right and `false` otherwise.
+The operands may be of different types. No types conversions occur besides `Int` and `Real` conversions.
+
+Example:
+----
+3 >  10 // Returns false
+3 > -10 // Returns true
+----
+
+==== Greater Than or Equal To `>=` [[greater_than_or_equal_to]]
+
+Compares the <<type_arithmetic, arithmetic type>> operands, returning `true` if the left operand is greater than or equal to the right and `false` otherwise.
+The operands may be of different types. No types conversions occur besides `Int` and `Real` conversions.
+
+Example:
+----
+3 >= 3  // Returns true
+3 >= 10 // Returns false
+----
+
+==== Equal To `==` [[equal_to]]
+
+Compares the operands, returning `true` if the left operand is equal to the right and `false` otherwise.
+When comparing values of <<type_arithmetic, arithmetic types>>, the operands may be of different types. No types conversions occur besides `Int` and `Real` conversions.
+
+This operator works on most types, including <<type_struct, struct types>> and <<type_tea, TEAs>>.
+
+Example:
+----
+3 == 3  // Returns true
+3 == 10 // Returns false
+----
+
+==== Not Equal To `!=` [[not_equal_to]]
+
+Compares the operands, returning `true` if the left operand is equal to the right and `false` otherwise.
+When comparing values of <<type_arithmetic, the operands may be of different types. No types conversions occur besides `Int` and `Real` conversions.
+
+This operator works on most types, including <<type_struct, struct types>> and <<type_tea, TEAs>>.
+
+Example:
+----
+3 != 3  // Returns false
+3 != 10 // Returns true
+----
+
+==== Assign `=` [[assign]]
+
+Stores the right operand into the left and returns the new value of the left operand.
+The right operand must have the same type as the left operand, although `Int` and `Real` will convert.
+
+Example:
+----
+U foo
+foo = 10 // 'foo' is now equal to 10
+----
+
+=== Array and pointer access [[array_access]]
+
+==== `[]` U-indexed access [[array_access_u]]
+
+Accesses the element value at an offset of type U, with 0-based indexing.
+
+Syntax:
+----
+value[offset]
+----
+
+- `value` is an expression with a <<type_tea, TEA type>>, <<type_vec, VEC type>>, or a pointer to a <<type_paa, PAA type>>.
+- `offset` is an optional expression of type `U`, used as the offset. If absent, `0` is used.
+
+Example:
+----
+array[20] = 10    // Set a TEA element
+x = @paa[10]      // Read a PAA element
+----
+
+[NOTE]
+For <<type_index, index types>>, `value` is added to `offset` to index into the type's array.
+
+==== `{}` UU-indexed access [[array_access_uu]]
+
+Accesses the element value at an offset of type UU, with 0-based indexing.
+
+Syntax:
+----
+value{offset}
+----
+
+- `value` is an expression with a <<type_tea, TEA type>>, <<type_vec, VEC type>>, or a pointer to a <<type_paa, PAA type>>.
+- `offset` is an expression of type `UU`, used as the offset. If absent, `0` is used.
+
+Example:
+----
+array{2000} = 10    // Set a TEA element
+x = @paa{1000}      // Read a PAA element
+----
+
+[NOTE] 
+`{}` often has significantly worse performance than `[]`.
+
+[NOTE]
+For <<type_index, index types>>, `value` is added to `offset` to index into the type's array.
+
+=== Hardware operators
+
+==== `{}()` Hardware read [[hw_read]]
+
+Returns the value at a hardware address.
+
+Syntax:
+----
+{address}()
+----
+- `address` is a value of type <<type_address, `AA`>>.
+
+Example:
+----
+U status = {PPUSTATUS}() // Read the PPU's status register
+----
+
+[NOTE]
+Although it is not recommended, to correctly read a NESFab variable this way, a <<kw_fence, `fence`>> is required, along with <<kw_employs, `employs`>>.
+
+==== `{,}()` Hardware read (pair) [[hw_read_pair]]
+
+Two compile-time constant addresses can be supplied to a hardware read expression, separated by a comma.
+Both addresses will be read, with the expression returning the result of the second one.
+
+In the generated assembly, NESFab will ensure that both reads occur together, without any code between them.
+
+Syntax:
+----
+{address_a, address_b}()
+----
+- `address_a` and `address_b` are compile-time constant values of type <<type_address, `AA`>>.
+
+Example:
+----
+U status = {PPUSTATUS, PPUSTATUS}() // Read the PPU's status register twice.
+----
+
+==== `{}()` Hardware write [[hw_write]]
+
+Assigns a value at a hardware address.
+
+Syntax:
+----
+{address}(value)
+----
+- `address` is a value of type <<type_address, `AA`>>.
+- `value` is an expression of type `U`.
+
+Example:
+----
+{PPUDATA}($80) // Write to the PPU's data register
+----
+
+[NOTE]
+To correctly write a NESFab variable this way, a <<kw_fence, `fence`>> is required, along with <<kw_employs, `employs`>>.
+
+==== `{,}(,)` Hardware write (pair) [[hw_write_pair]]
+
+Two compile-time constant addresses can be supplied to a hardware write expression, separated by a comma.
+Both addresses will be written by their corresponding arguments.
+
+In the generated assembly, NESFab will ensure that both writes occur together, without any code between them.
+
+Syntax:
+----
+{address_a, address_b}(value_a, value_b)
+----
+- `address_a` and `address_b` are compile-time constant values of type <<type_address, `AA`>>.
+- `value_a` and `value_b` are expressions of type `U`.
+
+Example:
+----
+{PPUDATA, PPUDATA}(10, 20) // Write to the PPU's data register twice
+----
+
+[NOTE]
+This expression is most useful for mappers that require two hardware writes to interface, like MMC3.
+
+=== Function calls [[fn_call]]
+
+Calls the named function
+It behaves similarly to function calls in other languages.
+
+Syntax:
+----
+fn_expression(argument_expressions...)
+----
+
+- `fn_expression` is the function to be called.
+- `argument_expressions` are a comma-separated list of expressions to be passed to the function as argument.
+
+Example:
+----
+foo(1, 2, 3)
+----
+
+=== `sizeof` [[sizeof]]
+
+`sizeof` expressions return the size in bytes of something.
+
+==== `sizeof` Type [[sizeof_type]]
+
+Returns the size in bytes of values belonging to a type as a compile-time constant value of type `Int`.
+
+Syntax:
+----
+sizeof Type
+----
+- `Type` is a type name.
+
+Example:
+----
+ct Int uu_size = sizeof UU
+----
+
+==== `sizeof`(expression) [[sizeof_expr]]
+
+Returns the size in bytes of an expression's value as a compile-time constant value of type `Int`.
+
+Syntax:
+----
+sizeof(expression)
+----
+- `expression` is an expression to calculate the size of. The expression will not be executed.
+
+Example:
+----
+ct Int expr_size = sizeof(1 + 2 + 3)
+----
+
+=== `len` [[len]]
+
+`len` expressions return the number of array elements.
+
+==== `len` Type [[len_type]]
+
+Returns the number of array elements of values belonging to a type as a compile-time constant value of type `Int`.
+
+Syntax:
+----
+len Type
+----
+- `Type` is a <<type_tea, typed element array type>>.
+
+Example:
+----
+ct Int array_len = len UU[10]
+----
+
+==== `len`(expression) [[len_expr]]
+
+Returns the number of array elements of an expression's value as a compile-time constant value of type `Int`.
+
+Syntax:
+----
+len(expression)
+----
+- `expression` is an array expression to calcalute the length of. The expression will not be executed.
+
+Example:
+----
+ct Int expr_len = len(U[10](3))
+----
+
+=== `abs`(expression) [[abs_expr]]
+
+`abs` first converts the argument to a signed representation, 
+then it returns the absolute value of it.
+The argument must be an <<type_arithmetic, arithmetic type>>.
+The return type is the argument type converted to unsigned.
+
+Syntax:
+----
+abs(expression)
+----
+- `expression` is an expression with an arithmetic type.
+
+Example:
+----
+UU positive = abs(SS(-10))
+----
+
+=== `min`(expression) [[min_expr]]
+
+Returns the minimum value of multiple <<type_quantity, quantity types>>.
+The return type is equivalent to the argument types, which must be the the same,
+although `Int` and `Real` will convert.
+
+Syntax:
+----
+min(expressions...)
+----
+- `expressions` is a comma-separated list of at least two expressions with quantity types.
+
+Example:
+----
+SS smallest = min(10, 20, 30)
+----
+
+=== `max`(expression) [[max_expr]]
+
+Returns the maximum value of multiple <<type_quantity, quantity types>>.
+The return type is equivalent to the argument types, which must be the the same,
+although `Int` and `Real` will convert.
+
+Syntax:
+----
+max(expressions...)
+----
+- `expressions` is a comma-separated list of at least two expressions with quantity types.
+
+Example:
+----
+SS largest = max(10, 20, 30)
+----
+
+=== Explicit Type Casts [[casts]]
+
+Type casts convert values into different types.
+
+Basic syntax:
+----
+Type(value)
+----
+Where `type` is any type name, and `value` is any expression.
+
+Example:
+
+----
+fn example()
+    U some_u = 10
+    SS some_ss = SS(some_u)    // An explicit cast to SS
+    UUF some_uuf = UUF(some_u) // An explicit cast to UUF
+----
+
+When casting between numeric types, the bytes closest to `U` are preserved.
+This means that casting `UUU` to `U` discards the two most significant bytes, while `FFF` to `F` discards the two least.
+
+When casting from signed types to unsigned types of the same size, the bit pattern of the value is unchanged.
+For example, `S(-1)` will cast to `U(255)`.
+
+==== Zero Initializations
+
+A type cast with no arguments is called a zero initialization.
+The value, its struct members, and its array elements are initialized to zero.
+
+----
+U()          // equivalent to U(0)
+UF()         // equivalent to U(0.0)
+U[3]()       // equivalent to U[3](0, 0, 0)
+SomeStruct() // equivalent to SomeStruct(0, 0)
+----
+
+==== Banked Pointer Initializations
+
+Banked pointers can be created with a two-argument cast:
+
+----
+CCC/my_group(address, bank)
+----
+
+The first argument is an unbanked pointer, while the second is the type `U` bank.
+
+==== Array Fills
+
+Array fills are used to create arrays where every element holds identical values.
+They are specified as an array cast, where the cast's singular argument can be converted to the element type.
+
+----
+S[2](50) // equivalent to S[2](50, 50)
+U[5](11) // equivalent to U[5](11, 11, 11, 11, 11)
+----
+
+The meaning of the indentation is determined by the first line - it might be a construct like `if` or `else`, 
+a definition like a function, or something else.
+
+
+== Literals
+
+=== Boolean Literals
+
+There are two boolean literals:
+
+- <<kw_true>>
+- <<kw_false>>
+
+Boolean literals have the type `Bool`.
+
+=== Numeric Literals
+
+Numeric literals can be either decimal, hexadecimal, or or binary. Hexadecimal literals are prefixed with a `$` character, while binary with `%`:
+
+----
+1234  // Decimal
+$89AB // Hexadecimal
+%1010 // Binary
+----
+
+Literals can use decimal points:
+
+----
+12.34  // Decimal
+$.89AB // Hexadecimal
+%1010. // Binary
+----
+
+Literals with decimal points have the type `Real`, while those without are `Int`.
+
+=== String and Character Literals
+
+==== Syntax and Semantics
+
+Basic syntax:
+
+----
+'c'   // Character using the default charmap
+"NES" // Uncompressed string using the default charmap
+`NES` // Compressed string using the default charmap
+
+'c'some_charmap   // Character using a specific charmap
+"NES"some_charmap // Uncompressed string using a specific charmap
+`NES`some_charmap // Compressed string using a specific charmap
+----
+
+Character literals have the type `U`. String literals have the type `U[N]`, where `N` is the length of the string.
+
+Each string and character literal uses a `charmap` 
+to translate the characters from Unicode into the `charmap`'s range.
+The `charmap` is set by an identifier following the literal.
+If no identifier follows, the default `charmap` is used.
+
+Strings can be uncompressed or compressed. 
+Compressed strings use a https://en.wikipedia.org/wiki/Byte_pair_encoding[byte-pair encoding], 
+where unused values in the charmap represent pairs of bytes.
+These pairs are expanded recursively to decompress the string.
+
+The nice thing about byte-pair encoding is that uncompressed strings are valid under the encoding too.
+This means functions for compressed strings also work with uncompressed strings.
+
+==== Escape Sequences
+
+Escape sequences denote characters that are either impossible or unwiedly to write otherwise.
+Every escape sequence begins with backslash character `\`, followed by one or more characters.
+
+For example, to denote the apostrophe character, you must use an escape sequence, as `'''` is not valid syntax.
+Likewise, to write a string containing line breaks, you must use escape sequences.
+
+----
+'\''            // An apostrophe character literal
+"Hello\nWorld!" // A multi-line string literal
+----
+
+The valid escape sequences are listed below.
+
+[cols="1,1,2"]
+|===
+|Escape Sequence |Unicode Code Point |Description
+
+|`\0`
+|$00
+| Sentinel
+
+|`\a`
+|$07
+| Bell or alert
+
+|`\b`
+|$08
+| Backspace
+
+|`\t`
+|$09
+| Tab
+
+|`\n`
+|$0A
+| Newline
+
+|`\v`
+|$0B
+| Vertical tab
+
+|`\f`
+|$0C
+| Form feed
+
+|`\r`
+|$0D
+| Carriage return
+
+|`\"`
+|$22
+| Quotation mark
+
+|`\'`
+|$27
+| Apostrophe
+
+|`\\`
+|$5C
+| Backslash
+
+|`\``
+|$60
+| Backtick
+
+|`\/`
+|$FFFFFFFF
+| Special meaning for `charmap` definitions
+|===
+
+Unicode code points can also be specified directly. Below, each N character represents any hexadecimal digit.
+
+[cols="1,1"]
+|===
+|Escape Sequence |Unicode Code Point
+
+|`\xNN`
+|$NN
+
+|`\uNNNN`
+|$NNNN
+
+|`\UNNNNNNNN`
+|$NNNNNNNN
+|===
+
+
+== Types
+
+=== Scalar Types [[type_scalar]]
+
+==== Integer Types [[type_integer]]
+
+Unsigned integer types are expressed using the character `U`, while signed integer types use `S`.
+The values of signed integers are expressed in https://en.wikipedia.org/wiki/Two%27s_complement[two's complement] form.
+
+The 6 integer types are listed below.
+
+[cols="1,1,1"]
+|===
+|Type |Size (bytes) |Value range
+
+|`U`
+|1
+|[0, 255]
+
+|`S`
+|1
+|[-128, 127]
+
+|`UU`
+|2
+|[0, 65535]
+
+|`SS`
+|2
+|[-32768, 32767]
+
+|`UUU`
+|3
+|[0, 16777215]
+
+|`SSS`
+|3
+|[-8388608, 8388607]
+|===
+
+==== Unit-Fractional Types
+[cols="1,1,1"]
+|===
+|Type |Size (bytes) |Value range
+
+|`F`
+|1
+|[$0.00, $0.FF]
+
+|`FF`
+|2
+|[$0.0000, $0.FFFF]
+
+|`FFF`
+|3
+|[$0.000000, $0.FFFFFF]
+|===
+
+==== Fixed-point Types [[type_fixed]]
+
+An integer type and a unit-fractional type can be combined to form a fixed-point type, merging the ranges of both.
+The syntax is the integer type, followed by the unit-fractional type, without no other characters in-between.
+
+*There are 18 possible fixed-point types, but only 3 are listed below.* The rest can be inferred from the tables above.
+
+[cols="1,1,1"]
+|===
+|Type |Size (bytes) |Value range
+
+|`UF`
+|2
+|[$00.00, $FF.FF]
+
+|`SSF`
+|3
+|[-$8000.00, $7FFF.FF]
+
+|`UFFF`
+|4
+|[$00.000000, $FF.FFFFFF]
+|===
+
+==== Numeric Constant Types
+
+`Int` and `Real` are used for compile-time constants.
+
+Literal expressions denoting integers, like `1234` or `$40`, have the type `Int`.
+Likewise, literal expressions with a `.` to denote fractions, like `3.14`, `0.5`, or `100.0`, have the type `Real`.
+
+Values of these types can only exist at compile-time. 
+Any attempt to use them at run-time will error.
+
+[cols="1,1,1"]
+|===
+|Type |Size (bytes) |Value range
+
+|`Int`
+|4
+|[-2147483648, 2147483647]
+
+|`Real`
+|7
+|[-$80000000.000000, $7FFFFFFF.FFFFFF]
+|===
+
+In many cases, `Int` and `Real` implicitly convert to other numeric types based on context.
+For example, when using `Int` or `Real` in an operator like `pass:c[+]`, 
+the value converts to match the other operand's type.
+
+----
+U(a) + Int(b) // 'b' will implicitly convert to type U.
+----
+
+When converting `Real` to a smaller representation, the value will be rounded.
+This is in contrast to other type conversions, which truncate.
+The purpose of this rounding is to improve the accuracy of `Real` constants.
+
+----
+U x = U(1.75)     // 'x' is set to 2 via rounding, NOT 1.
+U x = U(UF(1.75)) // 'x' is set to 1 via truncation, NOT 2.
+----
+
+Although `Int` and `Real` cannot be used at run-time, 
+it is very useful to use them at compile-time.
+For example, you may use them to define numeric constants:
+
+----
+ct Int MEANING_OF_LIFE = 42
+ct Real PI = 3.14159265359 
+ct Real GOLDEN_RATIO= 1.61803398875
+----
+
+==== Bool [[type_bool]]
+
+The type `Bool` is short for "boolean", and represents the values `true` and `false`.
+
+[cols="1,1,1"]
+|===
+|Type |Size (bytes) |Value range
+
+| `Bool`
+| 1
+| [`false`, `true`]
+|===
+
+The `Bool` type is space-inefficient, as each value takes a byte if stored in memory.
+If you need lots of boolean values, it's recommended to combine them into bit-field flags using an integer type:
+
+----
+ct U IS_ALIVE  = 1 << 0
+ct U IS_MOVING = 1 << 1
+ct U IS_HAPPY  = 1 << 2
+
+fn example()
+    U flags = 0
+    flags |= IS_ALIVE   // set flags
+    flags &= ~IS_MOVING // clear flags
+    if flags & IS_HAPPY // test flags
+        // . . .
+----
+
+==== Void
+
+The type `Void` represents no value. 
+Its purpose is to represent the return type of functions that return no value.
+
+Note that you do not have to use the `Void` keyword, 
+as leaving the return type off of a function implies `Void`.
+
+[cols="1,1,1"]
+|===
+|Type |Size (bytes) |Value range
+
+| `Void`
+| 0
+| N/A
+|===
+
+==== Index Types [[type_index]]
+
+Index types are a special variant of unsigned integers. 
+Their values represent indexes into a single global array.
+
+Syntax:
+----
+I.array
+II.array
+----
+- `array` is the name of the global array.
+
+Index types behave similarly to pointers, but their values are indexes, not addresses.
+Like pointers, the <<array_access_u, `[]` operator>> can be used to access the pointed-to value.
+
+Example:
+----
+I.foo my_index = 10 // Create an index into array foo at position 10.
+my_index[0] = 20    // Sets my_index[10+0] to 20.
+my_index += 1       // Increment the index to position 11.
+my_index[0] = 30    // Sets my_index[11+0] to 30.
+my_index[2] = 40    // Sets my_index[11+2] to 40.
+----
+
+Index types are not required to access arrays; `U` and `UU` can be used instead.
+However, index types offer a few advantages:
+
+1. They reduce typing. Instead of typing `foo[x]`, you can type `x[]`.
+2. They better decribe the purpose of variables.
+3. They provide better type safety.
+
+The 2 index types are listed below.
+
+[cols="1,1,1"]
+|===
+|Type |Size (bytes) |Value range
+
+|`I.array`
+|1
+|[0, 255]
+
+|`II.array`
+|2
+|[0, 65535]
+|===
+
+=== Arithmetic Types [[type_arithmetic]]
+
+Arithmetic types are defined as all <<type_integer, integer types>>, <<type_fixed, fixed-point types>>, <<type_index, index types>> and <<type_bool, `Bool`>>.
+
+=== Quantity Types [[type_quantity]]
+
+Quantity types are types which can represent quantities.
+They are defined as all <<type_integer, integer types>> and <<type_fixed, fixed-point types>>.
+
+==== Pointer Types [[type_ptr]]
+
+https://en.wikipedia.org/wiki/Pointer_(computer_programming)[Pointer] types represent addresses.
+Unlike pointers in other languages, pointers in NESFab can only point to <<type_paa, pointer-addressible arrays>>.
+
+There are six types of pointers (not including <<type_fn_ptr, function pointers>>, listed below:
+
+[cols="1,1,1,1"]
+|===
+|Type |Size (bytes) |Value range |Pointed-to Memory
+
+| `CC`
+| 2
+| [$0000, $FFFF]
+| ROM
+
+| `CCC`
+| 3
+| [$00:$0000, $FF:$FFFF]
+| ROM
+
+| `MM`
+| 2
+| [$0000, $FFFF]
+| RAM
+
+| `MMM`
+| 3
+| [$00:$0000, $FF:$FFFF]
+| RAM
+
+| `PP`
+| 2
+| [$0000, $FFFF]
+| RAM or ROM
+
+| `PPP`
+| 3
+| [$00:$0000, $FF:$FFFF]
+| RAM or ROM
+
+|===
+
+*Banked vs Unbanked*
+
+The two-letter pointers represent a 16-bit address, 
+while the three-letter pointers represent a 16-bit address along with an 8-bit bank.
+
+*Mutable vs Constant*
+
+The letter `C` in the names stands for "constant", while `M` stands for "mutable".
+It is possible to modify memory using `M` pointers, but not `C` pointers.
+Commonly, `C` pointers are used for ROM data, while `M` pointers are used for RAM data.
+
+*Groups*
+
+Pointer types are associated with one or more groups,
+and their values can only point to values of those groups.
+
+To include a group in a pointer type, append the group name onto it.
+For example, to create a pointer that can reference values belonging to the groups `/foo` and `/bar`, the syntax is:
+----
+CC/foo/bar
+----
+
+==== Address Types [[type_address]]
+
+The address type `AA` is used for 16-bit hardware addresses, 
+and has the same representation as <<type_ptr, pointers>>, ignoring <<groups, groups>>.
+This type is used for inline assembly and hardware expressions.
+
+`AAA` behaves like `AA`, but has an additional byte which tracks the address's bank.
+
+[cols="1,1,1"]
+|===
+|Type |Size (bytes) |Value range
+
+| `AA`
+| 2
+| [$0000, $FFFF]
+
+| `AAA`
+| 3
+| [$00:$0000, $FF:$FFFF]
+
+|===
+
+==== Function Pointer Types [[type_fn_ptr]]
+
+Function pointer types can be expressed using the prefix `Fn`, followed by their corresponding set.
+For more information, see the <<fn_ptr, function pointer section>>.
+
+Syntax:
+----
+Fn.set
+----
+- `set` is the name of a fn set.
+
+The size of function pointer types is unspecified, although it is typically 2 or 3 bytes.
+
+=== Arrays
+
+NESFab has three kinds of https://en.wikipedia.org/wiki/Array_(data_structure)[array] types with different restrictions for each.
+The first and second hav value semantics and behaves like arrays do in other languages, but cannot be referenced by pointers. 
+The third can, but it very limited otherwise and can only represent elements of type U.
+
+==== Typed Element Arrays (TEAs) [[type_tea]]
+
+A TEA is an array of a specified type, of any size between 0 and 65536. Two TEA variables are shown below.
+
+----
+fn example()
+    // Syntax is TYPE[SIZE]
+    UU[10] a_tea_variable
+    SomeStruct[1500] another_tea_variable
+----
+
+At the type level, TEAs are strictly one-dimensional.
+That is, one cannot have a TEA of a TEA.
+The compiler will enforce this even if TEAs are hidden inside structs.
+
+----
+struct SomeStruct
+    U[30] struct_tea
+
+fn foo()
+    U[10][20]      // Error! Can't have multi-dimensional TEAs
+    SomeStruct[50] // Error! Can't have multi-dimensional TEAs
+----
+
+A TEA value can be created using a cast. 
+The size can be left blank and the compiler will infer it.
+
+----
+fn example()
+    U[3] small_tea = U[3](10, 20, 30) // Initialize with value
+    U[] inferred_tea = U[](3, 1, 4)   // Inferred size
+----
+
+TEAs are always copied by value.
+To copy more or fewer elements, the TEA can be cast to a different size before copying.
+When casting to a larger TEA, the new elements at the end of the TEA are zero-initialized.
+
+----
+fn example()
+    U[3] small_tea = U[3](10, 20, 30)
+    U[3] copied_tea = small_tea
+    U[2] smaller_tea = U[2](small_tea)
+    U[5] larger_tea  = U[5](small_tea)
+----
+
+
+Operator `[]` or operator `{}` can be used to read or write the elements of a TEA value. 
+The indexing is zero-based.
+
+- `[]` expects an index argument of type `U`, limiting it to the first 256 elements.
+- `{}` expects an index argument of type `UU`.
+
+----
+fn example()
+    UU[1500] a_tea_variable
+    a_tea_variable[4] = 64   // Set the 5th element to 64.
+    a_tea_variable{999} = 10 // Set the 1000th element to 10.
+    a_tea_variable[999] = 10 // Error! 999 can't convert to type U.
+----
+
+The rationale for two different indexing operators is performance; 
+in general, `[]` executes significantly faster than `{}`, 
+as the NES only supports 8-bit indexing natively.
+
+Note that in some cases, the compiler will be able to optimize operator `{}` to take advantage of 8-bit indexing on the NES's hardware.
+One such pattern it recognizes is:
+
+----
+tea{U(index) + CONSTANT}
+----
+
+But in general, one should prefer to use `[]`, with TEAs of size 256 or less.
+
+==== Vectors (VECs) [[type_vec]]
+
+A VEC is an compile-time constant array of a specified type, of any size. 
+They are similar to <<type_tea, TEAs>>, but can be resized dynamically.
+
+----
+ct fn example()
+    // Syntax is TYPE{}
+    UU{} a_vec
+    SomeStruct{} another_vec_variable
+----
+
+VECs do not store their size in their type.
+
+Unlike TEAs, VECs can be multidimensional. 
+However, VECs can only exist at compile-time.
+
+A VEC value can be created using a cast. 
+The size can be left blank and the compiler will infer it.
+
+----
+ct fn example()
+    U{} small_vec = U{}(10, 20, 30) // Initialize with value
+----
+
+Like TEAs, operator `[]` or operator `{}` can be used to read or write the elements of a VEC value. 
+The indexing is zero-based.
+
+- `[]` expects an index argument of type `U`, limiting it to the first 256 elements.
+- `{}` expects an index argument of type `UU`.
+
+----
+ct fn example()
+    UU{} a_vec_variable = UU{}(UU[1500]())
+    a_vec_variable[4] = 64   // Set the 5th element to 64.
+    a_vec_variable{999} = 10 // Set the 1000th element to 10.
+    a_vec_variable[999] = 10 // Error! 999 can't convert to type U.
+----
+
+The operators <<kw_push>> and <<kw_pop>> can be used to add or remove elements from a VEC value.
+
+[NOTE]
+VECs are intended to be used for generating data at compile-time.
+For example, one can write a `ct fn` which compresses level data, using VECs.
+
+==== Pointer-Addressable Arrays (PAAs) [[type_paa]]
+
+PAAs only support a single element type: `U`, and can only be defined at global scope. 
+Like TEAs, they can be any size from 1 to 65536.
+
+----
+vars /example
+    // Syntax is [SIZE]
+    // (You do not specify a type, as it is always type U)
+    [10] a_paa
+    [1500] another_paa
+
+fn example([100] bad_param) // Error! Cannot use PAAs as fn parameters
+    [100] bad_variable      // Error! Cannot use PAAs as local variables
+----
+
+PAAs cannot be created using casts and there is no support for copying them.
+
+Like TEAs, operator `[]` or operator `{}` can be used to read or write the elements of a pointer value. 
+The indexing is zero-based.
+
+- `[]` expects an index argument of type `U`, limiting it to the first 256 elements.
+- `{}` expects an index argument of type `UU`.
+
+----
+vars /example
+    [10] a_paa
+
+fn example()
+    MM/example ptr = @a_paa // Get a pointer to 'a_paa'
+----
+
+=== Structures [[type_struct]]
+
+Structures (or "structs") are https://en.wikipedia.org/wiki/Record_(computer_science)[record types],
+which allows one to aggregate multiple types into a single one.
+
+See <<kw_struct>>.
