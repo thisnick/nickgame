@@ -1,3 +1,5 @@
 build/
 *.o
 *.nes
+.venv/
+.DS_Store

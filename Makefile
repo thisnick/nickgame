@@ -1,36 +1,17 @@
-CC65   = /tmp/cc65/bin
-CA65   = $(CC65)/ca65
-LD65   = $(CC65)/ld65
+ROM = nickgame.nes
 
-ROM    = nickgame.nes
-SRC    = src/main.s
-CFG    = cfg/nrom256.cfg
-CHR    = chr/tiles.chr
-OBJ    = build/main.o
-
-.PHONY: all clean run
+.PHONY: all clean web serve
 
 all: $(ROM)
 
-# Generate CHR data (uses sprite images via convert_sprites.py)
-$(CHR): tools/convert_sprites.py tools/make_chr.py $(wildcard sprites/*.png)
-	@mkdir -p chr
-	python3 tools/convert_sprites.py
+$(ROM): game.cfg src/main.fab
+	nesfab game.cfg
 
-# Assemble
-$(OBJ): $(SRC) $(CHR)
-	@mkdir -p build
-	$(CA65) -o $(OBJ) $(SRC)
-
-# Link
-$(ROM): $(OBJ) $(CFG)
-	$(LD65) -o $(ROM) -C $(CFG) $(OBJ)
-	@echo "Build successful: $(ROM)"
-	@ls -lh $(ROM)
+web: $(ROM)
+	cp $(ROM) web/$(ROM)
 
 clean:
-	rm -rf build $(ROM) chr/tiles.chr
+	rm -f $(ROM) web/$(ROM)
 
-# Serve browser emulator
-serve:
+serve: web
 	python3 -m http.server 8080
