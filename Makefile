@@ -12,10 +12,10 @@ OBJ    = build/main.o
 
 all: $(ROM)
 
-# Generate CHR data
-$(CHR): tools/make_chr.py
+# Generate CHR data (uses sprite images via convert_sprites.py)
+$(CHR): tools/convert_sprites.py tools/make_chr.py $(wildcard sprites/*.png)
 	@mkdir -p chr
-	python3 tools/make_chr.py
+	python3 tools/convert_sprites.py
 
 # Assemble
 $(OBJ): $(SRC) $(CHR)

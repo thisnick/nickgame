@@ -28,6 +28,7 @@ JOYPAD1   = $4016
 .segment "ZEROPAGE"
 nmi_flag:       .res 1  ; set in NMI, cleared by main
 frame_count:    .res 1
+rng_seed:       .res 1  ; LFSR pseudo-random seed
 
 ; Game state
 game_state:     .res 1  ; 0=title, 1=playing, 2=crashed, 3=win, 4=gameover
@@ -57,12 +58,12 @@ score_bcd:      .res 4
 joy1_cur:       .res 1
 joy1_prev:      .res 1
 
-; Obstacles (MAX 4, each with x_lo, x_hi, y, type, active)
-OBJ_MAX = 4
+; Obstacles (MAX 6, each with x_lo, x_hi, y, type, active)
+OBJ_MAX = 6
 obj_x_lo:   .res OBJ_MAX
 obj_x_hi:   .res OBJ_MAX  ; 0 or 1
 obj_y:      .res OBJ_MAX
-obj_type:   .res OBJ_MAX  ; 0=pothole,1=dog,2=vendor,3=baozi
+obj_type:   .res OBJ_MAX  ; 0=pothole,1=dog,2=vendor,3=baozi,4=bus,5=barrier
 obj_active: .res OBJ_MAX
 
 obj_spawn_timer:  .res 1  ; countdown to next spawn
@@ -101,6 +102,12 @@ OBJ_POTHOLE = 0
 OBJ_DOG     = 1
 OBJ_VENDOR  = 2
 OBJ_BAOZI   = 3
+OBJ_BUS     = 4
+OBJ_BARRIER = 5
+
+; Two-lane Y positions (between lanes)
+LANE01_Y = 68   ; between lane 0 and lane 1
+LANE12_Y = 116  ; between lane 1 and lane 2
 
 ; Joypad bits
 BTN_A      = %10000000
@@ -558,6 +565,21 @@ palette_data:
 .endproc
 
 ; ============================================================
+; Random - 8-bit LFSR pseudo-random number generator
+; Taps at bits 7,5,4,3 (polynomial x^8+x^6+x^5+x^4+1)
+; Call to get next pseudo-random byte in A and in rng_seed
+; ============================================================
+.proc Random
+    lda rng_seed
+    asl a
+    bcc @no_feedback
+    eor #$B4        ; feedback polynomial
+@no_feedback:
+    sta rng_seed
+    rts
+.endproc
+
+; ============================================================
 ; InitGame
 ; ============================================================
 .proc InitGame
@@ -602,6 +624,11 @@ palette_data:
     sta scroll_hi
     sta invincible
     sta crash_timer
+
+    ; Seed RNG from frame_count (non-zero seed required for LFSR)
+    lda frame_count
+    ora #$01        ; ensure non-zero
+    sta rng_seed
 
     lda #STATE_PLAYING
     sta game_state
@@ -836,35 +863,118 @@ palette_data:
     lda #$01
     sta obj_x_hi,x
 
-    ; Random lane (use frame_count as seed)
-    lda frame_count
+    ; Save slot index in tmp1
+    stx tmp1
+
+    ; --- Pick random TYPE ---
+    ; Use LFSR: get random byte
+    jsr Random          ; A = random byte, also updates rng_seed
+    sta tmp2            ; save for type selection
+
+    ; Type selection:
+    ; 0-2 (3/8 = ~37.5%) → OBJ_BAOZI
+    ; 3-4 (2/8 = 25%)    → OBJ_POTHOLE
+    ; 5   (1/8 = 12.5%)  → OBJ_DOG
+    ; 6   (1/8 = 12.5%)  → OBJ_VENDOR
+    ; 7   (1/8 = 12.5%)  → OBJ_BUS or OBJ_BARRIER (alternating)
+
+    and #$07            ; 0-7
+    cmp #3
+    bcs @not_baozi
+    ; type = OBJ_BAOZI
+    ldx tmp1
+    lda #OBJ_BAOZI
+    sta obj_type,x
+    jmp @pick_lane
+
+@not_baozi:
+    cmp #5
+    bcs @not_pothole
+    ; type = OBJ_POTHOLE
+    ldx tmp1
+    lda #OBJ_POTHOLE
+    sta obj_type,x
+    jmp @pick_lane
+
+@not_pothole:
+    cmp #6
+    bcs @not_dog
+    ; type = OBJ_DOG
+    ldx tmp1
+    lda #OBJ_DOG
+    sta obj_type,x
+    jmp @pick_lane
+
+@not_dog:
+    cmp #7
+    bcs @not_vendor
+    ; type = OBJ_VENDOR
+    ldx tmp1
+    lda #OBJ_VENDOR
+    sta obj_type,x
+    jmp @pick_lane
+
+@not_vendor:
+    ; type = OBJ_BUS or OBJ_BARRIER (alternate using rng_seed LSB)
+    lda rng_seed
+    and #$01
+    beq @pick_bus
+    ldx tmp1
+    lda #OBJ_BARRIER
+    sta obj_type,x
+    jmp @pick_two_lane
+
+@pick_bus:
+    ldx tmp1
+    lda #OBJ_BUS
+    sta obj_type,x
+    ; fall through to @pick_two_lane
+
+@pick_two_lane:
+    ; Two-lane blockers: position between lanes using LFSR
+    jsr Random
+    and #$01
+    beq @two_lane_01
+    ; between lane1 and lane2
+    ldx tmp1
+    lda #LANE12_Y
+    sta obj_y,x
+    rts
+@two_lane_01:
+    ldx tmp1
+    lda #LANE01_Y
+    sta obj_y,x
+    rts
+
+@pick_lane:
+    ; Single lane: use LFSR to pick 0,1,2
+    jsr Random
+    ; Map 0-255 to 0,1,2 via modulo 3
+    ; Simple approach: use bits 0-1, remap 3→2
     and #$03
     cmp #$03
     bne @lane_ok
-    lda #$02
+    ; 3 → 0 (just wrap)
+    lda #0
 @lane_ok:
-    ; Convert lane to Y position
+    ; A = lane 0,1,2 → convert to Y
     cmp #0
     bne @try1
+    ldx tmp1
     lda #LANE0_Y
-    jmp @set_y
+    sta obj_y,x
+    rts
 @try1:
     cmp #1
     bne @try2
+    ldx tmp1
     lda #LANE1_Y
-    jmp @set_y
-@try2:
-    lda #LANE2_Y
-@set_y:
     sta obj_y,x
-
-    ; Random type
-    lda frame_count
-    lsr a
-    lsr a
-    and #$03
-    sta obj_type,x
-
+    rts
+@try2:
+    ldx tmp1
+    lda #LANE2_Y
+    sta obj_y,x
     rts
 .endproc
 
@@ -898,17 +1008,36 @@ palette_data:
     bcs @next   ; obj left edge >= player right edge
 
     ; Check Y overlap
-    lda obj_y,x
-    ; Need obj_y < player_y+16 AND obj_y+16 > player_y
+    ; For bus/barrier (two-lane blockers), use height 32 to cover both lanes
+    ; Otherwise use height 12 for single-lane objects
+    lda player_y
     clc
-    adc #12     ; obj height ~12 pixels
-    cmp player_y
-    bcc @next
+    adc #16         ; A = player_y + 16
+    cmp obj_y,x
+    bcc @next       ; if player_y+16 <= obj_y, no overlap
+    beq @next
+
+    ; Determine object height
+    lda obj_type,x
+    cmp #OBJ_BUS
+    beq @tall_obj
+    cmp #OBJ_BARRIER
+    beq @tall_obj
+    ; Single-lane height
     lda obj_y,x
     clc
-    adc #4
+    adc #12         ; A = obj_y + 12
+    jmp @y_check_done
+@tall_obj:
+    ; Two-lane height: covers ~48 pixels
+    lda obj_y,x
+    clc
+    adc #32         ; A = obj_y + 32
+@y_check_done:
     cmp player_y
-    bcs @check_type
+    bcc @next       ; if obj_bottom <= player_y, no overlap
+    beq @next
+    jmp @check_type
 
 @next:
     inx
@@ -1401,6 +1530,9 @@ palette_data:
     jmp @update_offset
 
 @not_dog:
+    cmp #OBJ_VENDOR
+    bne @not_vendor
+
     ; OBJ_VENDOR: cart 2x2 ($0A-$0D), palette 1
     ; TL
     lda obj_y,y
@@ -1455,6 +1587,137 @@ palette_data:
     sta oam_buf,x
     inx
     lda #$01
+    sta oam_buf,x
+    inx
+    lda obj_x_lo,y
+    clc
+    adc #8
+    sta oam_buf,x
+    inx
+    jmp @update_offset
+
+@not_vendor:
+    cmp #OBJ_BUS
+    bne @not_bus
+
+    ; OBJ_BUS: bus 2x2 ($13-$16), palette 0 (use sprite pal 0 = blue)
+    ; TL
+    lda obj_y,y
+    sta oam_buf,x
+    inx
+    lda #$13
+    sta oam_buf,x
+    inx
+    lda #$00
+    sta oam_buf,x
+    inx
+    lda obj_x_lo,y
+    sta oam_buf,x
+    inx
+    ; TR
+    lda obj_y,y
+    sta oam_buf,x
+    inx
+    lda #$14
+    sta oam_buf,x
+    inx
+    lda #$00
+    sta oam_buf,x
+    inx
+    lda obj_x_lo,y
+    clc
+    adc #8
+    sta oam_buf,x
+    inx
+    ; BL
+    lda obj_y,y
+    clc
+    adc #8
+    sta oam_buf,x
+    inx
+    lda #$15
+    sta oam_buf,x
+    inx
+    lda #$00
+    sta oam_buf,x
+    inx
+    lda obj_x_lo,y
+    sta oam_buf,x
+    inx
+    ; BR
+    lda obj_y,y
+    clc
+    adc #8
+    sta oam_buf,x
+    inx
+    lda #$16
+    sta oam_buf,x
+    inx
+    lda #$00
+    sta oam_buf,x
+    inx
+    lda obj_x_lo,y
+    clc
+    adc #8
+    sta oam_buf,x
+    inx
+    jmp @update_offset
+
+@not_bus:
+    ; OBJ_BARRIER: 2x2 ($17-$1A), palette 3 (orange/warning)
+    ; TL
+    lda obj_y,y
+    sta oam_buf,x
+    inx
+    lda #$17
+    sta oam_buf,x
+    inx
+    lda #$03
+    sta oam_buf,x
+    inx
+    lda obj_x_lo,y
+    sta oam_buf,x
+    inx
+    ; TR
+    lda obj_y,y
+    sta oam_buf,x
+    inx
+    lda #$18
+    sta oam_buf,x
+    inx
+    lda #$03
+    sta oam_buf,x
+    inx
+    lda obj_x_lo,y
+    clc
+    adc #8
+    sta oam_buf,x
+    inx
+    ; BL
+    lda obj_y,y
+    clc
+    adc #8
+    sta oam_buf,x
+    inx
+    lda #$19
+    sta oam_buf,x
+    inx
+    lda #$03
+    sta oam_buf,x
+    inx
+    lda obj_x_lo,y
+    sta oam_buf,x
+    inx
+    ; BR
+    lda obj_y,y
+    clc
+    adc #8
+    sta oam_buf,x
+    inx
+    lda #$1A
+    sta oam_buf,x
+    inx
+    lda #$03
     sta oam_buf,x
     inx
     lda obj_x_lo,y
