@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>余生 — Bicycle Dash</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #111;
+  color: #fff;
+  font-family: 'Courier New', monospace;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  overflow: hidden;
+  touch-action: none;
+}
+h1 { font-size: 1.2em; margin-bottom: 8px; color: #0f0; }
+#nes-canvas {
+  width: min(90vw, 512px);
+  height: auto;
+  aspect-ratio: 256/240;
+  image-rendering: pixelated;
+  border: 2px solid #333;
+  background: #000;
+}
+.controls {
+  display: flex;
+  gap: 30px;
+  margin-top: 16px;
+  align-items: center;
+}
+.dpad {
+  display: grid;
+  grid-template-columns: 50px 50px 50px;
+  grid-template-rows: 50px 50px 50px;
+  gap: 2px;
+}
+.dpad button {
+  width: 50px; height: 50px;
+  background: #333; color: #fff;
+  border: 1px solid #555; border-radius: 6px;
+  font-size: 20px; font-weight: bold;
+  touch-action: none;
+  -webkit-user-select: none; user-select: none;
+}
+.dpad button:active { background: #0a0; }
+.dpad .empty { visibility: hidden; }
+.action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+.action-buttons button {
+  width: 60px; height: 60px;
+  border-radius: 50%;
+  font-size: 18px; font-weight: bold;
+  touch-action: none;
+  -webkit-user-select: none; user-select: none;
+}
+.btn-b { background: #c00; color: #fff; border: 2px solid #f44; }
+.btn-a { background: #00c; color: #fff; border: 2px solid #44f; }
+.btn-b:active { background: #f00; }
+.btn-a:active { background: #00f; }
+.meta-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+.meta-buttons button {
+  padding: 6px 16px;
+  background: #444; color: #fff;
+  border: 1px solid #666; border-radius: 4px;
+  font-size: 12px;
+  touch-action: none;
+}
+</style>
+</head>
+<body>
+<h1>🚲 余生 — Bicycle Dash</h1>
+<canvas id="nes-canvas" width="256" height="240"></canvas>
+<div class="controls">
+  <div class="dpad">
+    <div class="empty"></div>
+    <button id="btn-up">▲</button>
+    <div class="empty"></div>
+    <button id="btn-left">◀</button>
+    <div class="empty"></div>
+    <button id="btn-right">▶</button>
+    <div class="empty"></div>
+    <button id="btn-down">▼</button>
+    <div class="empty"></div>
+  </div>
+  <div class="action-buttons">
+    <button class="btn-a" id="btn-a">A</button>
+    <button class="btn-b" id="btn-b">B</button>
+  </div>
+</div>
+<div class="meta-buttons">
+  <button id="btn-start">START</button>
+  <button id="btn-select">SELECT</button>
+</div>
+
+<script src="https://nickmass.com/nes/jsnes.min.js"></script>
+<script>
+// Fallback: try cdnjs if first script fails
+if (typeof jsnes === 'undefined') {
+  document.write('<script src="https://unpkg.com/jsnes@1.2.1/dist/jsnes.min.js"><\/script>');
+}
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  const canvas = document.getElementById('nes-canvas');
+  const ctx = canvas.getContext('2d');
+  const imageData = ctx.createImageData(256, 240);
+
+  // Try to init JSNES
+  let nes;
+  try {
+    nes = new jsnes.NES({
+      onFrame: function(buffer) {
+        for (let i = 0; i < buffer.length; i++) {
+          const pixel = buffer[i];
+          imageData.data[i * 4 + 0] = (pixel >> 16) & 0xff;
+          imageData.data[i * 4 + 1] = (pixel >> 8) & 0xff;
+          imageData.data[i * 4 + 2] = pixel & 0xff;
+          imageData.data[i * 4 + 3] = 0xff;
+        }
+        ctx.putImageData(imageData, 0, 0);
+      },
+      onAudioSample: function(left, right) {}
+    });
+  } catch(e) {
+    ctx.fillStyle = '#fff';
+    ctx.font = '14px monospace';
+    ctx.fillText('Error loading emulator: ' + e.message, 10, 120);
+    return;
+  }
+
+  // Load ROM
+  try {
+    const resp = await fetch('nickgame.nes');
+    const buf = await resp.arrayBuffer();
+    const data = new Uint8Array(buf);
+    let romStr = '';
+    for (let i = 0; i < data.length; i++) {
+      romStr += String.fromCharCode(data[i]);
+    }
+    nes.loadROM(romStr);
+  } catch(e) {
+    ctx.fillStyle = '#fff';
+    ctx.font = '14px monospace';
+    ctx.fillText('Error loading ROM: ' + e.message, 10, 120);
+    return;
+  }
+
+  // Frame loop
+  function frame() {
+    nes.frame();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // Button mapping
+  const BUTTONS = {
+    'btn-up': [1, jsnes.Controller.BUTTON_UP],
+    'btn-down': [1, jsnes.Controller.BUTTON_DOWN],
+    'btn-left': [1, jsnes.Controller.BUTTON_LEFT],
+    'btn-right': [1, jsnes.Controller.BUTTON_RIGHT],
+    'btn-a': [1, jsnes.Controller.BUTTON_A],
+    'btn-b': [1, jsnes.Controller.BUTTON_B],
+    'btn-start': [1, jsnes.Controller.BUTTON_START],
+    'btn-select': [1, jsnes.Controller.BUTTON_SELECT],
+  };
+
+  // Touch controls
+  for (const [id, [player, button]] of Object.entries(BUTTONS)) {
+    const el = document.getElementById(id);
+    el.addEventListener('touchstart', (e) => { e.preventDefault(); nes.buttonDown(player, button); });
+    el.addEventListener('touchend', (e) => { e.preventDefault(); nes.buttonUp(player, button); });
+    el.addEventListener('mousedown', () => nes.buttonDown(player, button));
+    el.addEventListener('mouseup', () => nes.buttonUp(player, button));
+  }
+
+  // Keyboard
+  const KEY_MAP = {
+    'ArrowUp': jsnes.Controller.BUTTON_UP,
+    'ArrowDown': jsnes.Controller.BUTTON_DOWN,
+    'ArrowLeft': jsnes.Controller.BUTTON_LEFT,
+    'ArrowRight': jsnes.Controller.BUTTON_RIGHT,
+    'z': jsnes.Controller.BUTTON_A,
+    'x': jsnes.Controller.BUTTON_B,
+    'Enter': jsnes.Controller.BUTTON_START,
+    'Shift': jsnes.Controller.BUTTON_SELECT,
+  };
+  document.addEventListener('keydown', (e) => {
+    if (KEY_MAP[e.key] !== undefined) { nes.buttonDown(1, KEY_MAP[e.key]); e.preventDefault(); }
+  });
+  document.addEventListener('keyup', (e) => {
+    if (KEY_MAP[e.key] !== undefined) { nes.buttonUp(1, KEY_MAP[e.key]); e.preventDefault(); }
+  });
+});
+</script>
+</body>
+</html>
