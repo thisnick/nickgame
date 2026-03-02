@@ -1,17 +1,26 @@
-ROM = nickgame.nes
+GBDK_HOME = $(HOME)/gbdk/
+LCC = $(GBDK_HOME)bin/lcc
 
-.PHONY: all clean web serve
+PROJECTNAME = nickgame
+BINS = $(PROJECTNAME).gb
 
-all: $(ROM)
+CSOURCES := $(wildcard src/*.c)
+ASMSOURCES := $(wildcard src/*.s)
 
-$(ROM): game.cfg src/main.fab
-	nesfab game.cfg
+all: $(BINS)
 
-web: $(ROM)
-	cp $(ROM) web/$(ROM)
+$(BINS): $(CSOURCES) $(ASMSOURCES)
+	$(LCC) -o $@ $(CSOURCES) $(ASMSOURCES)
 
-clean:
-	rm -f $(ROM) web/$(ROM)
+web: $(BINS)
+	cp $(BINS) web/$(BINS)
 
 serve: web
-	python3 -m http.server 8080
+	python3 -m http.server 8080 -d web
+
+clean:
+	rm -f *.o *.lst *.map *.gb *.ihx *.sym *.cdb *.adb *.asm *.noi *.rst
+	rm -f src/*.o src/*.lst src/*.asm src/*.sym src/*.rst src/*.noi
+	rm -f web/$(BINS)
+
+.PHONY: all clean web serve

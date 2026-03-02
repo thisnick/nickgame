@@ -1,5 +1,15 @@
 build/
 *.o
 *.nes
+*.gb
+*.lst
+*.map
+*.ihx
+*.sym
+*.cdb
+*.adb
+*.noi
+*.rst
 .venv/
 .DS_Store
+web/nickgame.gb
