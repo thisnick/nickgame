@@ -13,3 +13,5 @@ build/
 .venv/
 .DS_Store
 web/nickgame.gb
+src/title_data.c
+src/title_data.h
