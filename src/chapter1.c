@@ -35,8 +35,8 @@
 #define FEEDBACK_DURATION 20
 
 #define DIR_LEFT  0
-#define DIR_UP    1
-#define DIR_DOWN  2
+#define DIR_UP    2
+#define DIR_DOWN  1
 #define DIR_RIGHT 3
 
 #define TARGET_SPRITE_BASE 16   // sprites 16-19: target outlines
