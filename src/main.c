@@ -7,11 +7,12 @@
 #include <string.h>
 
 #include "title_data.h"
+#include "chapter1.h"
 
 #define NUM_CHAPTERS 9
 
 static const char *chapter_names[NUM_CHAPTERS] = {
-    "Birth",
+    "Early Steps",
     "Road to School",
     "Cross the Ocean",
     "Love Story",
@@ -193,6 +194,10 @@ void main(void) {
     while (1) {
         show_title_screen();
         uint8_t chapter = show_chapter_select();
-        show_wip_screen(chapter);
+        if (chapter == 0) {
+            play_chapter1();
+        } else {
+            show_wip_screen(chapter);
+        }
     }
 }

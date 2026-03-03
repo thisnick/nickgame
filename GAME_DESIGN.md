@@ -1,7 +1,9 @@
-# Nick's Life: An NES Biographical RPG
+# Nick's Life: A Game Boy Biographical RPG
 
 ## Concept
 A chapter-based RPG where each stage of Nick's life is a unique mini-game. Between chapters, there's an overworld/narrative screen with pixel art cutscenes and dialogue. The player makes choices that echo real life — but the mini-games are the heart of it.
+
+**Platform:** Game Boy Color (GBDK-2020, C language)
 
 **Tone:** Warm, funny, occasionally tough. Not a documentary — a game *inspired by* a life.
 
@@ -11,14 +13,31 @@ A chapter-based RPG where each stage of Nick's life is a unique mini-game. Betwe
 
 ## Chapter Structure
 
-### Chapter 1: 出生 (Birth) — Kunming, China
-**Narrative:** Opening cutscene. Hospital. A baby is born. Text crawl sets the scene.
-**Mini-game: "First Steps"**
-- **Mechanic:** Balance/rhythm game. A wobbly baby sprite tries to walk across the room to Mom (奔奔).
-- **Controls:** Tap A and B alternately to take steps (like Track & Field). Too fast = fall. Too slow = sit down and cry.
-- **Difficulty curve:** First attempt you always fall. Second attempt you get further. Third attempt you make it. (Teaches the player: failure → retry → success — a theme for the whole game.)
-- **Win condition:** Reach Mom's arms. She picks you up. 🎉
-- **Pixel art:** Simple room, tatami/floor, Mom crouching with open arms.
+### Chapter 1: Early Steps — Kunming, China
+**Narrative:** Nick is born in the quiet town of Kunming, China. The story opens with the Zhuazhou tradition: lay objects before the baby, and whatever he grabs reveals his future. The player helps baby Nick take his first steps toward his destiny.
+
+**Story Intro (3 text screens):**
+1. "This is Nick. Born in the quiet town of Kunming, China."
+2. "A long life awaits, but first... a tradition. Lay objects before the baby. What he picks will reveal his future."
+3. "Help baby Nick take his first steps!"
+
+**Mini-game: "First Steps" (DDR Rhythm Game)**
+- **Mechanic:** Arrows scroll upward in 4 columns (Left, Up, Down, Right). The player presses the matching D-pad direction when arrows reach the target zone at the top. Hit detection: PERFECT (3px window, 100pts), GOOD (8px window, 50pts), MISS (passed the zone).
+- **Controls:** D-pad only. Each direction matches its column. Edge-detection prevents held buttons from registering multiple hits.
+- **Music:** Original 4-channel Game Boy music plays in sync with the arrows — two pulse channels (melody + harmony), wave channel (bass), and noise channel (drums). 120 BPM, ~63 seconds. The song has a gentle Chinese-inspired feel with a melodic lead over a steady bass and light percussion.
+- **Visual:** Baby sprite walks from left to right across the bottom of the screen as the song progresses, representing the journey toward the objects. Score HUD at top. Colored arrow sprites (red/green/blue/yellow) per direction.
+- **Level data:** 504-step chart at 120 BPM (8 steps/sec), 99 total arrows, with a 3-second lead-in. Arrows are spawned ahead of the beat to account for scroll travel time (~69 frames at 1.5 px/frame).
+- **No score screen:** Instead, the game flows directly into the story ending.
+
+**Ending Cutscene (Zhuazhou):**
+After the rhythm game, baby Nick reaches the pile of objects. A series of timed text screens play:
+1. "Nick reaches the pile of objects..."
+2. "A ball... a book... a paintbrush..."
+3. "He reaches out and grabs..."
+4. "...the calculator!"
+5. "His future is already taking shape." (press A to continue)
+
+The baby always picks the calculator — foreshadowing Nick's path into tech. No player choice; the story ending IS the payoff.
 
 ### Chapter 2: 上学路 (Road to School) — Kunming
 **Narrative:** You're a kid now. School starts early. Don't be late!
@@ -191,7 +210,7 @@ A chapter-based RPG where each stage of Nick's life is a unique mini-game. Betwe
 
 | Chapter | Speed Bonus | Skill Bonus | Secret Bonus |
 |---------|------------|-------------|--------------|
-| 1 - First Steps | Fewer falls = more pts | Perfect rhythm streak | Walk backwards first (easter egg) |
+| 1 - Early Steps | PERFECT hit % | Combo streaks | Full combo (no misses) |
 | 2 - Bicycle Dash | Finish with time left | No crashes | Collect all 包子 |
 | 3 - New World | Complete stages quickly | No wrong buses | Find hidden 奶茶 shop |
 | 4 - Heart Quest | Ask her out on day 1 | All green answers | Find the "perfect" wildcard combo |
@@ -205,7 +224,7 @@ A chapter-based RPG where each stage of Nick's life is a unique mini-game. Betwe
 - **Top 3 scores saved to cartridge RAM (battery-backed SRAM)**
 - Player enters 3-character initials (classic arcade style)
 - Shown on title screen: "TOP SCORES" with initials + total points
-- Bragging rights. Pure NES energy.
+- Bragging rights. Pure Game Boy energy.
 
 ### Grade Thresholds (per chapter)
 - **S:** 900-1000 (near perfect)
@@ -241,28 +260,30 @@ Between chapters, a simple timeline screen:
 Stars fill in as you complete chapters. Player can replay completed chapters for better scores.
 
 ## Art Style
-- 8-bit pixel art, NES palette (54 colors)
+- 8-bit pixel art, Game Boy Color palette (up to 8 BG palettes, 8 sprite palettes, 4 colors each)
 - Each chapter has a distinct color palette reflecting the mood
 - Character sprite evolves: baby → kid → teen → adult → parent → entrepreneur
-- Chinese text where it fits (NES supports custom character tiles)
+- Reusable scene system supports text pages and full-screen image pages for cutscenes
 
 ## Music
-- Each chapter has a unique BGM
-- Ch1: Lullaby. Ch2: Upbeat Chinese-inspired. Ch3: Bittersweet. Ch4: Romantic 8-bit. Ch5: Techno. Ch6: Chill lo-fi. Ch7: Intense → tender. Ch8: Epic → somber → hopeful.
+- Each chapter has a unique BGM using Game Boy's 4 sound channels
+- Ch1: Gentle melody with Chinese-inspired feel (2 pulse + wave bass + noise drums)
+- Ch2: Upbeat, energetic. Ch3: Bittersweet. Ch4: Romantic 8-bit. Ch5: Techno. Ch6: Chill lo-fi. Ch7: Intense → tender. Ch8: Epic → somber → hopeful.
 
 ## Technical Notes
-- NES ROM (NROM or MMC1 mapper for more space)
-- Likely need bank switching for this many chapters — MMC1 or MMC3
-- Each mini-game is essentially a separate "engine" loaded per chapter
-- CHR banks swap per chapter for different tilesets
-- Target: 256KB PRG + 128KB CHR (MMC3)
+- Game Boy Color ROM built with GBDK-2020 (C language)
+- 32KB ROM (expandable with bank switching if needed — MBC1/MBC5)
+- Each mini-game is a separate module (chapter1.c, chapter2.c, etc.)
+- Reusable scene system (scene.h/scene.c) for text and image cutscenes across chapters
+- Sprite-based gameplay overlays on BG text layer
+- 160x144 resolution, 40 sprites max, 192 unique BG tiles
 
 ---
 
-## Scope Reality Check 🎯
-This is ambitious for NES. For a buildable MVP:
-- **Phase 1:** Chapters 1-3 (Birth, Bicycle, Canada) — 3 distinct mini-games
+## Scope Reality Check
+This is ambitious for Game Boy. For a buildable MVP:
+- **Phase 1:** Chapters 1-3 (Early Steps, Bicycle, Canada) — 3 distinct mini-games
 - **Phase 2:** Chapters 4-6 (Love, Code, SF)
 - **Phase 3:** Chapters 7-9 (Baby, Startup, Ending)
 
-Start with Chapter 2 (Bicycle Dash) — it's the most "game-like" and easiest to prototype.
+Chapter 1 (Early Steps — DDR rhythm game) is complete and playable. Chapter 2 (Bicycle Dash) is next.
