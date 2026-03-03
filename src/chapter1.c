@@ -35,8 +35,8 @@
 #define FEEDBACK_DURATION 20
 
 #define DIR_LEFT  0
-#define DIR_UP    2
-#define DIR_DOWN  1
+#define DIR_UP    1
+#define DIR_DOWN  2
 #define DIR_RIGHT 3
 
 #define TARGET_SPRITE_BASE 16   // sprites 16-19: target outlines
@@ -47,7 +47,7 @@
 #define BABY_PAL_BASE       4   // palettes 4-6: baby colors
 #define CRAWL_ANIM_PERIOD   15  // frames per crawl pose (~4 fps)
 
-static const uint8_t arrow_x[4] = { 24, 56, 88, 120 };
+static const uint8_t arrow_x[4] = { 24, 88, 56, 120 };
 
 // --- Data Structures ---
 
