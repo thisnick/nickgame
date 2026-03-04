@@ -2,14 +2,15 @@
 <html>
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Nick's Life - Game Boy</title>
     <style>
         body { background: #1a1a2e; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
     </style>
 </head>
 <body>
-    <div style="width:640px;height:480px;max-width:100%">
-        <div id="game"></div>
+    <div style="width:640px;height:480px;max-width:100vw;max-height:100vh">
+        <div id="game" style="width:100%;height:100%"></div>
     </div>
     <script type="text/javascript">
         EJS_player = '#game';
