@@ -8,6 +8,7 @@
 
 #include "title_data.h"
 #include "chapter1.h"
+#include "chapter2.h"
 
 #define NUM_CHAPTERS 9
 
@@ -196,6 +197,8 @@ void main(void) {
         uint8_t chapter = show_chapter_select();
         if (chapter == 0) {
             play_chapter1();
+        } else if (chapter == 1) {
+            play_chapter2();
         } else {
             show_wip_screen(chapter);
         }
