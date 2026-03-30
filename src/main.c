@@ -9,6 +9,7 @@
 #include "title_data.h"
 #include "chapter1.h"
 #include "chapter2.h"
+#include "chapter3.h"
 
 #define NUM_CHAPTERS 9
 
@@ -199,6 +200,8 @@ void main(void) {
             play_chapter1();
         } else if (chapter == 1) {
             play_chapter2();
+        } else if (chapter == 2) {
+            play_chapter3();
         } else {
             show_wip_screen(chapter);
         }

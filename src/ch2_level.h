@@ -38,119 +38,91 @@ static const ch2_event_t ch2_events[] = {
     // === PHASE 1: Learning (0-30s, frames 0-1800) ===
     // Segment 1 (0-360): gentle intro, single potholes
     {  120, LANE_MID, OBS_POTHOLE },
-    {  240, LANE_TOP, OBS_POTHOLE },
-    {  330, LANE_BOT, OBS_PUDDLE  },
+    {  260, LANE_TOP, OBS_POTHOLE },
+    {  400, LANE_BOT, OBS_PUDDLE  },
 
-    // Segment 2 (360-720): slightly faster, mixed lanes
-    {  420, LANE_MID, OBS_POTHOLE },
-    {  500, LANE_BOT, OBS_POTHOLE },
-    {  580, LANE_TOP, OBS_PUDDLE  },
-    {  660, LANE_MID, OBS_PUDDLE  },
+    // Segment 2 (450-800): slightly faster, mixed lanes
+    {  500, LANE_MID, OBS_POTHOLE },
+    {  620, LANE_BOT, OBS_POTHOLE },
+    {  740, LANE_TOP, OBS_PUDDLE  },
+    {  860, LANE_MID, OBS_PUDDLE  },
 
-    // Segment 3 (720-1080): two obstacles closer together
-    {  780, LANE_TOP, OBS_POTHOLE },
-    {  840, LANE_BOT, OBS_POTHOLE },
-    {  960, LANE_MID, OBS_PUDDLE  },
-    { 1020, LANE_TOP, OBS_PUDDLE  },
+    // Segment 3 (900-1200): two obstacles closer together
+    {  940, LANE_TOP, OBS_POTHOLE },
+    { 1020, LANE_BOT, OBS_POTHOLE },
+    { 1120, LANE_MID, OBS_PUDDLE  },
+    { 1200, LANE_TOP, OBS_PUDDLE  },
 
-    // Segment 4 (1080-1440): introduce 2-lane block (must go to specific lane)
-    { 1140, LANE_TOP, OBS_POTHOLE },
-    { 1140, LANE_MID, OBS_POTHOLE },  // blocks top+mid, must go bottom
-    { 1300, LANE_BOT, OBS_PUDDLE  },
-    { 1300, LANE_MID, OBS_PUDDLE  },  // blocks bot+mid, must go top
-    { 1400, LANE_TOP, OBS_POTHOLE },
+    // Segment 4 (1260-1500): 2-lane block (must go to specific lane)
+    { 1300, LANE_TOP, OBS_POTHOLE },
+    { 1300, LANE_MID, OBS_POTHOLE },  // blocks top+mid, must go bottom
+    { 1480, LANE_BOT, OBS_PUDDLE  },
+    { 1480, LANE_MID, OBS_PUDDLE  },  // blocks bot+mid, must go top
 
-    // Segment 5 (1440-1800): faster rhythm, first collectible!
-    { 1500, LANE_BOT, OBS_POTHOLE },
-    { 1560, LANE_TOP, OBS_POTHOLE },
-    { 1620, LANE_MID, COL_BAOZI   },  // reward for surviving phase 1
-    { 1700, LANE_BOT, OBS_PUDDLE  },
+    // Segment 5 (1560-1800): faster rhythm, first collectible!
+    { 1580, LANE_BOT, OBS_POTHOLE },
+    { 1660, LANE_MID, COL_BAOZI   },  // reward for surviving phase 1
     { 1760, LANE_TOP, OBS_PUDDLE  },
 
     // === PHASE 2: Ramping Up (30-60s, frames 1800-3600) ===
     // Segment 6 (1800-2160): introduce dogs!
     { 1860, LANE_MID, OBS_DOG     },
-    { 1950, LANE_TOP, OBS_POTHOLE },
-    { 2040, LANE_BOT, OBS_DOG     },
-    { 2100, LANE_MID, COL_BAOZI   },
+    { 2000, LANE_TOP, OBS_POTHOLE },
+    { 2100, LANE_BOT, OBS_DOG     },
 
-    // Segment 7 (2160-2520): introduce cyclists
+    // Segment 7 (2200-2520): introduce cyclists
     { 2220, LANE_TOP, OBS_CYCLIST },
-    { 2300, LANE_BOT, OBS_DOG     },
-    { 2380, LANE_MID, OBS_CYCLIST },
-    { 2440, LANE_TOP, COL_BAOZI   },
-    { 2500, LANE_BOT, OBS_POTHOLE },
+    { 2360, LANE_BOT, OBS_DOG     },
+    { 2460, LANE_MID, COL_BAOZI   },
 
     // Segment 8 (2520-2880): 2-lane blocks with dogs
     { 2580, LANE_TOP, OBS_DOG     },
     { 2580, LANE_MID, OBS_POTHOLE },  // top+mid blocked
-    { 2700, LANE_BOT, OBS_CYCLIST },
-    { 2700, LANE_MID, OBS_PUDDLE  },  // bot+mid blocked
-    { 2820, LANE_TOP, COL_BAOZI   },
-    { 2860, LANE_BOT, OBS_DOG     },
+    { 2760, LANE_BOT, OBS_CYCLIST },
+    { 2760, LANE_MID, OBS_PUDDLE  },  // bot+mid blocked
+    { 2920, LANE_TOP, COL_BAOZI   },
 
-    // Segment 9 (2880-3240): faster pace, more collectibles
-    { 2940, LANE_MID, OBS_DOG     },
-    { 3000, LANE_TOP, OBS_CYCLIST },
-    { 3060, LANE_BOT, OBS_POTHOLE },
-    { 3100, LANE_MID, COL_BAOZI   },
-    { 3140, LANE_TOP, OBS_DOG     },
-    { 3200, LANE_BOT, OBS_CYCLIST },
+    // Segment 9 (2960-3240): faster pace, more collectibles
+    { 2980, LANE_MID, OBS_DOG     },
+    { 3100, LANE_TOP, OBS_CYCLIST },
+    { 3200, LANE_MID, COL_BAOZI   },
+    { 3300, LANE_BOT, OBS_DOG     },
 
-    // Segment 10 (3240-3600): intense, first textbook!
-    { 3300, LANE_TOP, OBS_DOG     },
-    { 3300, LANE_BOT, OBS_CYCLIST },  // top+bot blocked, mid safe
-    { 3400, LANE_MID, OBS_POTHOLE },
-    { 3460, LANE_TOP, COL_TEXTBOOK }, // big reward!
-    { 3520, LANE_BOT, OBS_DOG     },
-    { 3560, LANE_MID, OBS_CYCLIST },
+    // Segment 10 (3360-3600): intense, first textbook!
+    { 3380, LANE_TOP, OBS_DOG     },
+    { 3380, LANE_BOT, OBS_CYCLIST },  // top+bot blocked, mid safe
+    { 3520, LANE_MID, OBS_POTHOLE },
+    { 3600, LANE_TOP, COL_TEXTBOOK }, // big reward!
 
     // === PHASE 3: Hectic (60-90s, frames 3600-5400) ===
-    // Segment 11 (3600-3960): introduce buses (block 2 lanes!)
-    { 3660, LANE_TOP, OBS_BUS     },  // bus blocks top+mid
-    { 3660, LANE_MID, OBS_BUS     },
-    { 3800, LANE_BOT, OBS_DOG     },
-    { 3900, LANE_MID, COL_BAOZI   },
-    { 3940, LANE_TOP, OBS_CYCLIST },
+    // Segment 11 (3660-3960): introduce buses!
+    { 3700, LANE_MID, OBS_BUS     },  // single bus, imposing
+    { 3860, LANE_BOT, OBS_DOG     },
+    { 3940, LANE_MID, COL_BAOZI   },
 
     // Segment 12 (3960-4320): introduce vendor stalls!
     { 4020, LANE_BOT, OBS_VENDOR  },  // 要不要来串？
-    { 4120, LANE_TOP, OBS_BUS     },
-    { 4120, LANE_MID, OBS_BUS     },
-    { 4240, LANE_BOT, OBS_DOG     },
-    { 4280, LANE_MID, COL_BAOZI   },
-    { 4300, LANE_TOP, OBS_CYCLIST },
+    { 4180, LANE_TOP, OBS_BUS     },
+    { 4340, LANE_BOT, OBS_DOG     },
+    { 4420, LANE_MID, COL_BAOZI   },
 
-    // Segment 13 (4320-4680): rapid fire
-    { 4360, LANE_TOP, OBS_DOG     },
-    { 4400, LANE_BOT, OBS_POTHOLE },
-    { 4440, LANE_MID, OBS_CYCLIST },
-    { 4480, LANE_TOP, OBS_PUDDLE  },
-    { 4520, LANE_BOT, OBS_DOG     },
-    { 4560, LANE_MID, COL_TEXTBOOK }, // textbook in the chaos
-    { 4620, LANE_TOP, OBS_VENDOR  },
-    { 4660, LANE_BOT, OBS_CYCLIST },
+    // Segment 13 (4440-4700): rapid fire (spaced for 4 max)
+    { 4460, LANE_TOP, OBS_DOG     },
+    { 4560, LANE_BOT, OBS_CYCLIST },
+    { 4660, LANE_MID, COL_TEXTBOOK }, // textbook in the chaos
+    { 4760, LANE_TOP, OBS_VENDOR  },
 
-    // Segment 14 (4680-5040): peak difficulty
-    { 4720, LANE_TOP, OBS_BUS     },
-    { 4720, LANE_MID, OBS_BUS     },
-    { 4800, LANE_BOT, OBS_DOG     },
-    { 4840, LANE_TOP, OBS_DOG     },
-    { 4880, LANE_MID, OBS_VENDOR  },
-    { 4920, LANE_BOT, OBS_CYCLIST },
-    { 4960, LANE_TOP, COL_BAOZI   },
-    { 5000, LANE_MID, OBS_POTHOLE },
-    { 5000, LANE_BOT, OBS_PUDDLE  },
+    // Segment 14 (4800-5100): peak difficulty
+    { 4840, LANE_MID, OBS_BUS     },
+    { 4960, LANE_BOT, OBS_DOG     },
+    { 5040, LANE_TOP, OBS_CYCLIST },
+    { 5100, LANE_MID, COL_BAOZI   },
 
-    // Segment 15 (5040-5400): final stretch — school in sight!
-    { 5080, LANE_MID, OBS_DOG     },
-    { 5120, LANE_TOP, OBS_CYCLIST },
-    { 5160, LANE_BOT, OBS_POTHOLE },
-    { 5200, LANE_MID, COL_BAOZI   },
-    { 5240, LANE_TOP, OBS_PUDDLE  },
-    { 5280, LANE_BOT, OBS_DOG     },
-    { 5320, LANE_MID, COL_TEXTBOOK }, // last big reward
-    { 5360, LANE_TOP, OBS_POTHOLE },  // one last obstacle
+    // Segment 15 (5140-5400): final stretch — school in sight!
+    { 5160, LANE_MID, OBS_DOG     },
+    { 5240, LANE_TOP, OBS_POTHOLE },
+    { 5300, LANE_MID, COL_TEXTBOOK }, // last big reward
+    { 5360, LANE_BOT, OBS_PUDDLE  },  // one last obstacle
 };
 
 #define CH2_NUM_EVENTS (sizeof(ch2_events) / sizeof(ch2_events[0]))

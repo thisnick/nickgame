@@ -1,6 +1,10 @@
 #ifndef CHAPTER1_H
 #define CHAPTER1_H
 
-void play_chapter1(void);
+#include <gbdk/platform.h>
+
+BANKREF_EXTERN(chapter1)
+
+void play_chapter1(void) BANKED;
 
 #endif

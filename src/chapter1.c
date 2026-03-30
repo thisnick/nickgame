@@ -1,3 +1,5 @@
+#pragma bank 1
+
 #include <gb/gb.h>
 #include <gb/cgb.h>
 #include <gbdk/font.h>
@@ -804,7 +806,9 @@ static void ch1_cleanup(void) {
 
 // --- Public Entry Point ---
 
-void play_chapter1(void) {
+BANKREF(chapter1)
+
+void play_chapter1(void) BANKED {
     show_intro_image();
     scene_play(intro_text, 3);
     ch1_init_display();

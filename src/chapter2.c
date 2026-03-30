@@ -1,3 +1,5 @@
+#pragma bank 2
+
 #include <gb/gb.h>
 #include <gb/cgb.h>
 #include <gbdk/font.h>
@@ -24,32 +26,36 @@
 
 // --- Constants ---
 
-#define MAX_OBSTACLES   8
+#define MAX_OBSTACLES   4
 #define BIKE_SCREEN_X   40
 #define BIKE_OAM_X      (BIKE_SCREEN_X + 8)
 
-// Sprite tile base offsets
-#define TILE_BIKE1      0
-#define TILE_BIKE2      4
-#define TILE_POTHOLE    8
-#define TILE_PUDDLE     9
-#define TILE_DOG1       10
-#define TILE_DOG2       12
-#define TILE_VENDOR     14
-#define TILE_BUS        18
-#define TILE_CYCLIST    24
-#define TILE_BAOZI      26
-#define TILE_TEXTBOOK   27
+// Sprite tile base offsets (8x16 mode, tiles counted in 8x16 units)
+#define TILE_BIKE1      0    // 12 tiles
+#define TILE_BIKE2      12   // 12 tiles
+#define TILE_POTHOLE    24   // 4 tiles
+#define TILE_PUDDLE     28   // 2 tiles
+#define TILE_DOG1       30   // 8 tiles
+#define TILE_DOG2       38   // 6 tiles
+#define TILE_VENDOR     44   // 16 tiles
+#define TILE_BUS        60   // 16 tiles
+#define TILE_CYCLIST    76   // 4 tiles
+#define TILE_BAOZI      80   // 2 tiles
+#define TILE_TEXTBOOK   82   // 2 tiles
 
-// Sprite palette indices
-#define PAL_BIKE        0
-#define PAL_WARM        1
-#define PAL_COOL        2
-#define PAL_COLLECT     3
+// Sprite palette indices (GBC supports 8 sprite palettes)
+#define PAL_BIKE        0   // skin, blue, dark
+#define PAL_WARM        1   // tan, brown, dkbrown (dog, vendor)
+#define PAL_BUS         2   // cream, red, dark
+#define PAL_ROAD        3   // ltgray, gray, dkgray (pothole, cyclist approx)
+#define PAL_WATER       4   // ltblue, medblue, dkblue (puddle)
+#define PAL_COLLECT     5   // white, cream, gold (baozi)
+#define PAL_BOOK        6   // white, cblue, dark (textbook)
 
-// Sprite slot allocation
-#define SPR_BIKE        0   // sprites 0-3
-#define SPR_OBS_BASE    4   // sprites 4-35 (8 slots * 4 sprites)
+// Sprite slot allocation (8x16 mode)
+#define SPR_BIKE        0   // sprites 0-5 (6 entries for 32x32 bike)
+#define SPR_OBS_BASE    6   // sprites 6-37 (4 obstacles * 8 max entries)
+#define SPR_PER_OBS     8   // max sprite entries per obstacle
 
 // Scroll speeds (8.8 fixed point)
 #define SPEED_NORMAL    0x0100u
@@ -57,7 +63,8 @@
 #define SPEED_BRAKE     0x0080u
 
 // Lane Y positions (OAM coordinates = screen_y + 16)
-static const uint8_t lane_y[3] = { 88, 112, 136 };
+// Spaced 32px apart so 32x32 sprites don't overlap between lanes
+static const uint8_t lane_y[3] = { 80, 112, 144 };
 
 // Lane switch animation
 #define LANE_SWITCH_FRAMES 8
@@ -215,18 +222,21 @@ static void ch2_load_sprites(void) {
     set_sprite_data(TILE_BAOZI, ch2_baozi_TILE_COUNT, ch2_baozi_tiles);
     set_sprite_data(TILE_TEXTBOOK, ch2_textbook_TILE_COUNT, ch2_textbook_tiles);
 
-    // Palettes
+    // Palettes (GBC has 8 sprite palettes)
     set_sprite_palette(PAL_BIKE, 1, ch2_bike_frame1_palettes);
     set_sprite_palette(PAL_WARM, 1, ch2_dog_frame1_palettes);
-    set_sprite_palette(PAL_COOL, 1, ch2_bus_palettes);
+    set_sprite_palette(PAL_BUS, 1, ch2_bus_palettes);
+    set_sprite_palette(PAL_ROAD, 1, ch2_pothole_palettes);
+    set_sprite_palette(PAL_WATER, 1, ch2_puddle_palettes);
     set_sprite_palette(PAL_COLLECT, 1, ch2_baozi_palettes);
+    set_sprite_palette(PAL_BOOK, 1, ch2_textbook_palettes);
 }
 
 // --- Display Init ---
 
 static void ch2_init_display(void) {
     DISPLAY_OFF;
-    SPRITES_8x8;
+    SPRITES_8x16;
 
     // Load font (tiles 0-127)
     font_init();
@@ -366,15 +376,18 @@ static uint8_t get_palette(uint8_t type) {
         case OBS_VENDOR:
             return PAL_WARM;
         case OBS_BUS:
+            return PAL_BUS;
         case OBS_CYCLIST:
         case OBS_POTHOLE:
+            return PAL_ROAD;
         case OBS_PUDDLE:
-            return PAL_COOL;
+            return PAL_WATER;
         case COL_BAOZI:
-        case COL_TEXTBOOK:
             return PAL_COLLECT;
+        case COL_TEXTBOOK:
+            return PAL_BOOK;
         default:
-            return PAL_COOL;
+            return PAL_ROAD;
     }
 }
 
@@ -403,8 +416,8 @@ static void spawn_obstacle(uint8_t type, uint8_t lane) {
             obstacles[i].active = 1;
             obstacles[i].type = type;
             obstacles[i].lane = lane;
-            obstacles[i].x_pos = 168; // spawn off right edge
-            obstacles[i].sprite_base = SPR_OBS_BASE + (i * 4);
+            obstacles[i].x_pos = 176; // spawn off right edge (wider sprites)
+            obstacles[i].sprite_base = SPR_OBS_BASE + (i * SPR_PER_OBS);
             obstacles[i].anim_frame = 0;
             return;
         }
@@ -412,8 +425,8 @@ static void spawn_obstacle(uint8_t type, uint8_t lane) {
 }
 
 static void hide_obstacle_sprites(uint8_t slot) {
-    uint8_t base = SPR_OBS_BASE + (slot * 4);
-    for (uint8_t s = base; s < base + 4; s++) {
+    uint8_t base = SPR_OBS_BASE + (slot * SPR_PER_OBS);
+    for (uint8_t s = base; s < base + SPR_PER_OBS; s++) {
         move_sprite(s, 0, 0);
     }
 }
@@ -497,7 +510,7 @@ static void ch2_game_loop(void) {
                                    PAL_BIKE, SPR_BIKE, BIKE_OAM_X, bike_y);
             }
         } else {
-            for (uint8_t s = SPR_BIKE; s < SPR_BIKE + 4; s++) {
+            for (uint8_t s = SPR_BIKE; s < SPR_OBS_BASE; s++) {
                 move_sprite(s, 0, 0);
             }
         }
@@ -536,11 +549,11 @@ static void ch2_game_loop(void) {
             move_metasprite_ex(ms[0], tile, pal, obstacles[i].sprite_base, oam_x, oam_y);
 
             // 8. Collision detection
-            // Check if obstacle overlaps bike horizontally (bike at x 40, width ~16)
+            // Check if obstacle overlaps bike horizontally (bike at x 40, width ~32)
             uint8_t obs_x = (uint8_t)obstacles[i].x_pos;
             uint8_t is_collectible = (obstacles[i].type & 0x80) ? 1 : 0;
 
-            if (obs_x >= 28 && obs_x <= 56) {
+            if (obs_x >= 16 && obs_x <= 72) {
                 // Check lane overlap
                 uint8_t obs_lane = obstacles[i].lane;
                 uint8_t bike_in_lane = (bike_lane == obs_lane) ? 1 : 0;
@@ -737,7 +750,9 @@ static void ch2_cleanup(void) {
 
 // --- Public Entry Point ---
 
-void play_chapter2(void) {
+BANKREF(chapter2)
+
+void play_chapter2(void) BANKED {
     // 1. Intro text
     scene_play(intro_text, 3);
 
